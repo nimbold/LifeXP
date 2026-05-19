@@ -435,7 +435,7 @@ class LifeXPApp:
                     y1 = offset + (y * pixel_size)
                     self.avatar_canvas.create_rectangle(x1, y1, x1+pixel_size, y1+pixel_size, fill=color, outline="")
 
-    def update_header(self):
+    def update_header(self, animate_rank=True):
         """Calculates total global XP and Level and updates the UI."""
         # Total account XP is reconstructed from every attribute. Stored XP only keeps
         # the current level's remainder, so previous level costs are added back in.
@@ -460,13 +460,15 @@ class LifeXPApp:
 
         # This block plays a rank-up animation only after startup. current_total_level
         # starts at 0 so loading an existing save does not trigger old animations.
+        rank_event = None
         if self.current_total_level != 0 and total_level > self.current_total_level:
-            x_pos = self.root.winfo_width() - 80 if self.root.winfo_width() > 1 else 750
-            self.play_floating_text(f"🌟 RANK UP: {title.upper()}!", color, x_pos, 80, size=20)
-            self.play_particles(color, x_pos + 30, 40, count=60, gravity=False, rainbow=True)
+            rank_event = {"title": title, "color": color}
+            if animate_rank:
+                self.play_rank_up_animation(title, color)
 
         self.current_total_level = total_level
         self.update_avatar(tier_index, color, progress)
+        return rank_event
 
     def setup_ui(self):
         """Initializes the main tabbed interface of the application."""
@@ -1342,7 +1344,7 @@ class LifeXPApp:
         attr = task["attribute"]
         xp_gain = task["xp"]
 
-        self.gain_xp(attr, xp_gain)
+        level_events = self.gain_xp(attr, xp_gain)
 
         # History records are separate from active tasks. They preserve what happened,
         # which attribute gained XP, and when completion occurred.
@@ -1361,7 +1363,10 @@ class LifeXPApp:
 
         self.save_data()
         self.refresh_task_list()
-        self.update_stats_display()
+        rank_event = self.update_stats_display(animate_rank=False)
+
+        if level_events or rank_event:
+            self.schedule_level_up_sequence(level_events, rank_event)
 
     def get_xp_needed(self, level):
         """Returns the XP required to pass the given level. Increases by 25% each level."""
@@ -1370,23 +1375,27 @@ class LifeXPApp:
         return int(100 * (1.25 ** (level - 1)))
 
     def gain_xp(self, attribute, amount):
-        """Calculates new XP and triggers Level Ups if necessary."""
+        """Calculates new XP and returns any level-up moments to animate later."""
         # XP is added to one attribute. The while loop handles large rewards that might
         # cross more than one level boundary at once.
         stat = self.data["stats"][attribute]
         stat["xp"] += amount
+        level_events = []
 
         while stat["xp"] >= self.get_xp_needed(stat["level"]):
             stat["xp"] -= self.get_xp_needed(stat["level"])
             stat["level"] += 1
 
-            # Each level-up checks whether a milestone trophy was reached, then plays visual
-            # feedback so progression feels immediate.
-            self.check_trophies(attribute, stat["level"])
+            # Each level-up checks whether a milestone trophy was reached. Animation is
+            # delayed by the completion flow so the XP popup gets the first beat.
+            trophy_name = self.check_trophies(attribute, stat["level"])
+            level_events.append({
+                "attribute": attribute,
+                "level": stat["level"],
+                "trophy": trophy_name
+            })
 
-            cx, cy = self.get_center()
-            self.play_floating_text(f"🌟 {attribute} LEVEL UP (LVL {stat['level']})! 🌟", "#B48EAD", cx, cy - 50, size=24)
-            self.play_particles("#B48EAD", cx, cy - 50, count=60, gravity=False, rainbow=True)
+        return level_events
 
     def check_trophies(self, attribute, new_level):
         """Awards a trophy if specific level milestones are hit."""
@@ -1400,9 +1409,9 @@ class LifeXPApp:
 
         if trophy_name and trophy_name not in self.data["trophies"]:
             self.data["trophies"].append(trophy_name)
+            return trophy_name
 
-            cx, cy = self.get_center()
-            self.play_floating_text(f"🏆 {trophy_name.upper()} EARNED! 🏆", "#EBCB8B", cx, cy + 50, size=20)
+        return None
 
     def draw_trophy(self, canvas, progress, color, shape_grid, is_gold=False, is_shiny=False):
         """Draws an 8-bit shape, filling it from bottom to top based on progress."""
@@ -1449,7 +1458,7 @@ class LifeXPApp:
 
                     canvas.create_rectangle(x1, y1, x2, y2, fill=fill_color, outline="")
 
-    def update_stats_display(self):
+    def update_stats_display(self, animate_rank=True):
         """Updates the text labels, progress bars, and visual trophies on the Character tab."""
 
         # Stats display refreshes both numbers and artwork. If new trophy tiers are now
@@ -1479,7 +1488,7 @@ class LifeXPApp:
                 is_shiny = (level_req == 100)
                 self.draw_trophy(canvas, progress, self.attr_colors[attr], shape, is_gold, is_shiny)
 
-        self.update_header()
+        return self.update_header(animate_rank=animate_rank)
 
     def show_summary(self, timeframe):
         """Reads the history memory and filters it by date to generate a report."""
@@ -1619,6 +1628,45 @@ class LifeXPApp:
             safe_y = max(padding + height // 2, min(y, root_h - padding - height // 2))
 
         return safe_x, safe_y
+
+    def schedule_level_up_sequence(self, level_events, rank_event=None):
+        """Plays completion rewards after the XP popup has had a short moment."""
+        delay = 350
+        spacing = 520
+
+        for index, event in enumerate(level_events):
+            self.root.after(delay + (index * spacing), lambda e=event: self.play_level_up_animation(e))
+
+        if rank_event:
+            rank_delay = delay + (len(level_events) * spacing)
+            self.root.after(rank_delay, lambda: self.play_rank_up_animation(rank_event["title"], rank_event["color"]))
+
+    def play_level_up_animation(self, event):
+        """Shows a delayed, extra-bright level-up celebration."""
+        cx, cy = self.get_center()
+        attr = event["attribute"]
+        level = event["level"]
+
+        self.play_floating_text(f"🌟 {attr} LEVEL UP (LVL {level})! 🌟", "#B48EAD", cx, cy - 55, size=26)
+        self.play_particles("#B48EAD", cx, cy - 55, count=95, gravity=False, rainbow=True)
+        self.root.after(90, lambda: self.play_particles(self.attr_colors[attr], cx - 70, cy - 20, count=35, gravity=False, rainbow=True))
+        self.root.after(140, lambda: self.play_particles(self.attr_colors[attr], cx + 70, cy - 20, count=35, gravity=False, rainbow=True))
+
+        if event["trophy"]:
+            self.root.after(260, lambda: self.play_trophy_animation(event["trophy"], cx, cy + 40))
+
+    def play_rank_up_animation(self, title, color):
+        """Celebrates account rank-ups with a wide rainbow burst."""
+        x_pos = self.root.winfo_width() - 80 if self.root.winfo_width() > 1 else 750
+        self.play_floating_text(f"🌟 RANK UP: {title.upper()}!", color, x_pos, 80, size=22)
+        self.play_particles(color, x_pos + 30, 40, count=95, gravity=False, rainbow=True)
+        self.root.after(90, lambda: self.play_particles(color, x_pos - 55, 90, count=35, gravity=False, rainbow=True))
+        self.root.after(140, lambda: self.play_particles(color, x_pos + 10, 125, count=35, gravity=False, rainbow=True))
+
+    def play_trophy_animation(self, trophy_name, x, y):
+        """Shows a trophy reward after the level-up burst."""
+        self.play_floating_text(f"🏆 {trophy_name.upper()} EARNED! 🏆", "#EBCB8B", x, y, size=20)
+        self.play_particles("#EBCB8B", x, y, count=50, gravity=True, rainbow=True)
 
     def play_floating_text(self, text, color, x, y, size=18):
         """Creates retro text that pops, floats upwards, and fades out."""
