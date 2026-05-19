@@ -15,6 +15,8 @@ import json
 import os
 import random
 
+APP_VERSION = "1.01"
+
 # ==============================================================================
 # MAIN APP CLASS
 # A class lets the app keep related data and behavior together. Every method
@@ -298,6 +300,8 @@ class LifeXPApp:
         self.style.map('QuestEdit.TButton', background=[('active', '#FFD60A')], foreground=[('active', '#2A2100')])
         self.style.configure('QuestAbandon.TButton', background="#FF3B30", foreground="#FFFFFF", font=('{San Francisco}', 11, 'bold'), padding=8)
         self.style.map('QuestAbandon.TButton', background=[('active', '#FF453A')], foreground=[('active', '#FFFFFF')])
+        self.style.configure('Danger.TButton', background="#FF3B30", foreground="#FFFFFF", font=('{San Francisco}', 11, 'bold'), padding=8)
+        self.style.map('Danger.TButton', background=[('active', '#FF453A')], foreground=[('active', '#FFFFFF')])
 
         self.style.configure('TLabelframe', background=self.bg_dark, foreground=self.accent_green, font=('{San Francisco}', 12, 'bold'))
         self.style.configure('TLabelframe.Label', background=self.bg_dark, foreground=self.accent_green)
@@ -746,7 +750,7 @@ class LifeXPApp:
         self.show_summary("daily")
 
     def open_settings_page(self):
-        """Opens the Settings page, currently focused on app themes."""
+        """Opens the Settings page for themes, reset controls, and app info."""
         if self.settings_window and self.settings_window.winfo_exists():
             self.settings_window.lift()
             self.settings_window.focus_force()
@@ -754,7 +758,7 @@ class LifeXPApp:
 
         self.settings_window = tk.Toplevel(self.root)
         self.settings_window.title("Settings")
-        self.settings_window.geometry("560x560")
+        self.settings_window.geometry("560x430")
         self.settings_window.configure(bg=self.bg_dark)
         self.settings_window.transient(self.root)
 
@@ -767,51 +771,96 @@ class LifeXPApp:
         )
         header.pack(fill=tk.X, padx=18, pady=(18, 8))
 
-        # For now Settings has one field: Themes. Each row shows swatches, a short
-        # personality note, and an Apply button.
+        # Themes use a compact drop-down so the settings window has room for more app
+        # controls without turning into a long scroll of palette rows.
         themes_frame = ttk.LabelFrame(self.settings_window, text=" Themes ")
-        themes_frame.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 18))
+        themes_frame.pack(fill=tk.X, padx=18, pady=(0, 14))
 
-        for theme_name, theme in self.themes.items():
-            row = tk.Frame(themes_frame, bg=self.bg_dark)
-            row.pack(fill=tk.X, padx=10, pady=6)
+        selected_theme = tk.StringVar(value=self.current_theme_name)
 
-            swatches = tk.Frame(row, bg=self.bg_dark)
-            swatches.pack(side=tk.LEFT, padx=(0, 10))
+        picker_row = tk.Frame(themes_frame, bg=self.bg_dark)
+        picker_row.pack(fill=tk.X, padx=12, pady=(12, 8))
 
-            for color in [theme["bg_dark"], theme["bg_light"], theme["accent"]] + list(theme["attr_colors"].values())[:3]:
-                tk.Frame(swatches, bg=color, width=14, height=24).pack(side=tk.LEFT, padx=1)
+        theme_picker = ttk.Combobox(
+            picker_row,
+            textvariable=selected_theme,
+            values=list(self.themes.keys()),
+            state="readonly",
+            font=("{San Francisco}", 11)
+        )
+        theme_picker.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-            text_frame = tk.Frame(row, bg=self.bg_dark)
-            text_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Button(
+            picker_row,
+            text="Apply",
+            command=lambda: self.set_theme(selected_theme.get())
+        ).pack(side=tk.RIGHT, padx=(10, 0))
 
-            name_text = theme_name
-            if theme_name == self.current_theme_name:
-                name_text += "  ✓"
+        preview_row = tk.Frame(themes_frame, bg=self.bg_dark)
+        preview_row.pack(fill=tk.X, padx=12, pady=(0, 12))
 
-            tk.Label(
-                text_frame,
-                text=name_text,
-                font=("{San Francisco}", 12, "bold"),
-                bg=self.bg_dark,
-                fg=self.text_color
-            ).pack(anchor=tk.W)
+        swatches = tk.Frame(preview_row, bg=self.bg_dark)
+        swatches.pack(side=tk.LEFT, padx=(0, 10))
 
-            tk.Label(
-                text_frame,
-                text=theme["description"],
-                font=("{San Francisco}", 10),
-                bg=self.bg_dark,
-                fg=self.text_color,
-                wraplength=300,
-                justify=tk.LEFT
-            ).pack(anchor=tk.W)
+        description_label = tk.Label(
+            preview_row,
+            text="",
+            font=("{San Francisco}", 10),
+            bg=self.bg_dark,
+            fg=self.text_color,
+            wraplength=400,
+            justify=tk.LEFT
+        )
+        description_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-            ttk.Button(
-                row,
-                text="Apply",
-                command=lambda selected=theme_name: self.set_theme(selected)
-            ).pack(side=tk.RIGHT, padx=(10, 0))
+        def update_theme_preview(event=None):
+            for widget in swatches.winfo_children():
+                widget.destroy()
+
+            theme = self.themes[selected_theme.get()]
+            colors = [theme["bg_dark"], theme["bg_light"], theme["accent"]] + list(theme["attr_colors"].values())[:3]
+            for color in colors:
+                tk.Frame(swatches, bg=color, width=16, height=24).pack(side=tk.LEFT, padx=1)
+
+            description_label.config(text=theme["description"])
+
+        theme_picker.bind("<<ComboboxSelected>>", update_theme_preview)
+        update_theme_preview()
+
+        reset_frame = ttk.LabelFrame(self.settings_window, text=" Progress ")
+        reset_frame.pack(fill=tk.X, padx=18, pady=(0, 14))
+
+        reset_body = tk.Frame(reset_frame, bg=self.bg_dark)
+        reset_body.pack(fill=tk.X, padx=12, pady=12)
+
+        tk.Label(
+            reset_body,
+            text="Reset all XP, levels, quests, history, and trophies.",
+            font=("{San Francisco}", 10),
+            bg=self.bg_dark,
+            fg=self.text_color,
+            wraplength=340,
+            justify=tk.LEFT
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        ttk.Button(
+            reset_body,
+            text="Reset Progress",
+            style="Danger.TButton",
+            command=self.reset_progress
+        ).pack(side=tk.RIGHT, padx=(10, 0))
+
+        about_frame = ttk.LabelFrame(self.settings_window, text=" About ")
+        about_frame.pack(fill=tk.X, padx=18, pady=(0, 18))
+
+        tk.Label(
+            about_frame,
+            text=f"LifeXP\nCreated by NimBold\nVersion {APP_VERSION}",
+            font=("{San Francisco}", 11),
+            bg=self.bg_dark,
+            fg=self.text_color,
+            justify=tk.LEFT
+        ).pack(anchor=tk.W, padx=12, pady=12)
 
     def set_theme(self, theme_name, save=True):
         """Applies a selected theme immediately and optionally saves it."""
@@ -832,6 +881,34 @@ class LifeXPApp:
             self.settings_window.destroy()
             self.settings_window = None
             self.open_settings_page()
+
+    def reset_progress(self):
+        """Clears progression data after an explicit warning confirmation."""
+        confirmed = messagebox.askyesno(
+            "⚠ Reset Progress?",
+            "This will erase all XP, levels, quests, history, and trophies.\n\nAre you sure you want to reset your LifeXP progress?",
+            icon="warning",
+            parent=self.settings_window
+        )
+        if not confirmed:
+            return
+
+        self.data["stats"] = {attr: {"level": 1, "xp": 0} for attr in self.attributes}
+        self.data["tasks"] = []
+        self.data["history"] = []
+        self.data["trophies"] = []
+        self.current_total_level = 0
+
+        self.save_data()
+        self.refresh_task_list()
+        self.update_stats_display()
+        self.show_summary("daily")
+
+        messagebox.showinfo(
+            "Progress Reset",
+            "Your LifeXP progress has been reset.",
+            parent=self.settings_window
+        )
 
     def refresh_theme_widgets(self):
         """Recolors already-created tk widgets after a theme change."""
