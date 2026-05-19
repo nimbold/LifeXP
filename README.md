@@ -1,6 +1,6 @@
-# RPG Task Master
+# LifeXP
 
-RPG Task Master is a Python Tkinter desktop app that turns everyday tasks into a small role-playing game. You add quests, complete them for XP, level up five character attributes, unlock visual trophies, and review your activity in daily, weekly, and monthly Chronicles.
+LifeXP is a Python Tkinter desktop app that turns everyday tasks into a small role-playing game. You add quests, complete them for XP, level up five character attributes, unlock visual trophies, and review your activity in daily, weekly, and monthly Chronicles.
 
 This is also a first-project learning course. The code is intentionally commented in block-level notes so it explains how the app works without making every line unreadable.
 

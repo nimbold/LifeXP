@@ -1,5 +1,5 @@
 # ==============================================================================
-# RPG TASK MASTER - LEARNING MAP
+# LIFEXP - LEARNING MAP
 # This file is a small desktop app. It mixes four ideas:
 # 1. UI widgets from Tkinter, 2. saved JSON data, 3. RPG-style XP logic,
 # and 4. simple canvas animations. Comments explain chunks, not every line.
@@ -20,16 +20,16 @@ import random
 # A class lets the app keep related data and behavior together. Every method
 # below uses self to access the same window, saved data, widgets, and colors.
 # ==============================================================================
-class RPGTaskManager:
+class LifeXPApp:
     """
-    Main application class for the RPG Task Master.
+    Main application class for LifeXP.
     """
 
     def __init__(self, root):
         # Store the main Tkinter window and set its basic title/size. The root window
         # is the parent object that all visible widgets eventually belong to.
         self.root = root
-        self.root.title("RPG Task Master")
+        self.root.title("LifeXP")
         self.root.geometry("850x700")
 
         # These are the core game stats. Tasks give XP to one of these attributes,
@@ -1701,5 +1701,5 @@ class RPGTaskManager:
 # ==============================================================================
 if __name__ == "__main__":
     root = tk.Tk()
-    app = RPGTaskManager(root)
+    app = LifeXPApp(root)
     root.mainloop()
