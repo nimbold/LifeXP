@@ -28,14 +28,14 @@ python3 main.py
 The app saves progress in:
 
 ```text
-rpg_tasks_data.json
+lifexp_data.json
 ```
 
 ## Project Files
 
 ```text
 main.py              Main Tkinter application
-rpg_tasks_data.json  Local save data
+lifexp_data.json     Local save data
 README.md            Project overview
 ```
 

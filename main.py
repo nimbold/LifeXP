@@ -38,7 +38,7 @@ class LifeXPApp:
 
         # Keep track of persistence and account-level animation state. The JSON file
         # is the app's memory between runs.
-        self.data_file = "rpg_tasks_data.json"
+        self.data_file = "lifexp_data.json"
         self.current_total_level = 0
         self.themes = self.get_theme_definitions()
         self.current_theme_name = "Nord RPG"
