@@ -496,10 +496,13 @@ class LifeXPApp:
 
     def create_pixel_icon(self, pattern, palette, pixel_size=3):
         """Turns a small character grid into a vibrant PhotoImage pixel icon."""
+        # Calculate the total width and height based on the pixel grid.
+        # tk.PhotoImage creates an empty image in memory that we can draw pixels onto.
         width = len(pattern[0]) * pixel_size
         height = len(pattern) * pixel_size
         image = tk.PhotoImage(width=width, height=height)
 
+        # Loop through every row and column of the pattern to paint each "pixel" block.
         for y, row in enumerate(pattern):
             for x, cell in enumerate(row):
                 if cell != ".":
@@ -694,6 +697,8 @@ class LifeXPApp:
         report_frame = ttk.LabelFrame(self.tab_summary, text=" Activity Report ")
         report_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
 
+        # Here we create a dynamic title label for the report, which will update 
+        # based on the selected timeframe (Daily, Weekly, Monthly).
         self.summary_title_label = tk.Label(
             report_frame,
             text="",
@@ -703,6 +708,8 @@ class LifeXPApp:
         )
         self.summary_title_label.pack(fill=tk.X, padx=10, pady=(10, 6))
 
+        # This container frame holds the summary cards side-by-side. We use a grid
+        # layout inside it to evenly distribute one card per RPG attribute.
         cards_frame = tk.Frame(report_frame, bg=self.bg_dark)
         cards_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 
@@ -753,11 +760,14 @@ class LifeXPApp:
 
     def open_settings_page(self):
         """Opens the Settings page for themes, reset controls, and app info."""
+        # If the settings window is already open, we don't want to create duplicates.
+        # Instead, we just bring the existing window to the front and focus on it.
         if self.settings_window and self.settings_window.winfo_exists():
             self.settings_window.lift()
             self.settings_window.focus_force()
             return
 
+        # tk.Toplevel creates a new floating window on top of the main root window.
         self.settings_window = tk.Toplevel(self.root)
         self.settings_window.title("Settings")
         self.settings_window.geometry("560x430")
@@ -866,12 +876,16 @@ class LifeXPApp:
 
     def set_theme(self, theme_name, save=True):
         """Applies a selected theme immediately and optionally saves it."""
+        # We first check if the requested theme is valid to avoid crashing.
         if theme_name not in self.themes:
             return
 
+        # Update the active theme name and re-run the styling method.
+        # This will instantly alter the appearance of many default ttk widgets.
         self.current_theme_name = theme_name
         self.apply_modern_theme()
 
+        # Update the saved user preferences so the theme persists on next launch.
         if hasattr(self, "data"):
             self.data["user_info"]["theme"] = theme_name
             if save:
@@ -1587,9 +1601,14 @@ class LifeXPApp:
 
     def clamp_widget_position(self, widget, x, y, padding=12):
         """Keeps an anchored widget fully inside the visible application window."""
+        # update_idletasks() forces Tkinter to finish pending geometry calculations.
+        # This ensures we get the most accurate current width and height of the window.
         self.root.update_idletasks()
         root_w = self.root.winfo_width()
         root_h = self.root.winfo_height()
+        
+        # Sometimes the window isn't fully drawn yet, giving a width/height of 1.
+        # In that case, we fall back to the default app dimensions.
         if root_w <= 1 or root_h <= 1:
             root_w, root_h = 850, 700
 
@@ -1612,6 +1631,8 @@ class LifeXPApp:
 
     def clamp_box_position(self, width, height, x, y, padding=12):
         """Keeps a floating popup box fully inside the visible application window."""
+        # Similar to clamp_widget_position, but works with explicit width/height
+        # rather than a widget object. Useful for centering temporary animations.
         root_w = self.root.winfo_width()
         root_h = self.root.winfo_height()
         if root_w <= 1 or root_h <= 1:

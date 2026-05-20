@@ -2,20 +2,20 @@
     "user_info": {
         "name": "Hero",
         "avatar_seed": 1917,
-        "theme": "Dracula"
+        "theme": "Tokyo Night"
     },
     "stats": {
         "Strength": {
-            "level": 4,
-            "xp": 119
+            "level": 1,
+            "xp": 0
         },
         "Agility": {
             "level": 1,
-            "xp": 20
+            "xp": 0
         },
         "Intelligence": {
-            "level": 7,
-            "xp": 355
+            "level": 1,
+            "xp": 0
         },
         "Charisma": {
             "level": 1,
@@ -27,158 +27,8 @@
         }
     },
     "tasks": [],
-    "history": [
-        {
-            "name": "Coding",
-            "attribute": "Intelligence",
-            "subcategory": "Coding",
-            "xp": 100,
-            "date": "2026-05-19T03:06:00.233477"
-        },
-        {
-            "name": "Coding",
-            "attribute": "Intelligence",
-            "subcategory": "Coding",
-            "xp": 80,
-            "date": "2026-05-19T03:06:15.094969"
-        },
-        {
-            "name": "Bug Fixing",
-            "attribute": "Intelligence",
-            "subcategory": "Bug Fixing",
-            "xp": 100,
-            "date": "2026-05-19T03:15:21.846092"
-        },
-        {
-            "name": "Cleaning",
-            "attribute": "Agility",
-            "subcategory": "Cleaning",
-            "xp": 20,
-            "date": "2026-05-19T03:15:25.958501"
-        },
-        {
-            "name": "Bug Fixing",
-            "attribute": "Intelligence",
-            "subcategory": "Bug Fixing",
-            "xp": 100,
-            "date": "2026-05-19T18:06:00.555143"
-        },
-        {
-            "name": "Coding",
-            "attribute": "Intelligence",
-            "subcategory": "Coding",
-            "xp": 100,
-            "date": "2026-05-19T18:06:27.239612"
-        },
-        {
-            "name": "Coding",
-            "attribute": "Intelligence",
-            "subcategory": "Coding",
-            "xp": 100,
-            "date": "2026-05-19T18:06:30.509846"
-        },
-        {
-            "name": "Coding",
-            "attribute": "Intelligence",
-            "subcategory": "Coding",
-            "xp": 100,
-            "date": "2026-05-19T18:06:50.974108"
-        },
-        {
-            "name": "Coding",
-            "attribute": "Intelligence",
-            "subcategory": "Coding",
-            "xp": 100,
-            "date": "2026-05-19T18:11:48.237434"
-        },
-        {
-            "name": "Coding",
-            "attribute": "Intelligence",
-            "subcategory": "Coding",
-            "xp": 100,
-            "date": "2026-05-19T18:11:50.514730"
-        },
-        {
-            "name": "Coding",
-            "attribute": "Intelligence",
-            "subcategory": "Coding",
-            "xp": 100,
-            "date": "2026-05-19T18:11:54.903788"
-        },
-        {
-            "name": "Bodyweight Exercise",
-            "attribute": "Strength",
-            "subcategory": "Bodyweight Exercise",
-            "xp": 100,
-            "date": "2026-05-19T18:16:38.089701"
-        },
-        {
-            "name": "Bodyweight Exercise",
-            "attribute": "Strength",
-            "subcategory": "Bodyweight Exercise",
-            "xp": 100,
-            "date": "2026-05-19T18:16:42.119901"
-        },
-        {
-            "name": "Bodyweight Exercise",
-            "attribute": "Strength",
-            "subcategory": "Bodyweight Exercise",
-            "xp": 100,
-            "date": "2026-05-19T18:16:45.567797"
-        },
-        {
-            "name": "Bodyweight Exercise",
-            "attribute": "Strength",
-            "subcategory": "Bodyweight Exercise",
-            "xp": 100,
-            "date": "2026-05-19T18:34:18.173762"
-        },
-        {
-            "name": "Bug Fixing",
-            "attribute": "Intelligence",
-            "subcategory": "Bug Fixing",
-            "xp": 100,
-            "date": "2026-05-19T18:36:30.355014"
-        },
-        {
-            "name": "Bug Fixing",
-            "attribute": "Intelligence",
-            "subcategory": "Bug Fixing",
-            "xp": 100,
-            "date": "2026-05-19T18:37:38.281962"
-        },
-        {
-            "name": "Budget Review",
-            "attribute": "Intelligence",
-            "subcategory": "Budget Review",
-            "xp": 100,
-            "date": "2026-05-19T18:38:33.237967"
-        },
-        {
-            "name": "Budget Review",
-            "attribute": "Intelligence",
-            "subcategory": "Budget Review",
-            "xp": 100,
-            "date": "2026-05-19T18:41:48.853975"
-        },
-        {
-            "name": "Bug Fixing",
-            "attribute": "Intelligence",
-            "subcategory": "Bug Fixing",
-            "xp": 100,
-            "date": "2026-05-19T18:43:33.512540"
-        },
-        {
-            "name": "Bodyweight Exercise",
-            "attribute": "Strength",
-            "subcategory": "Bodyweight Exercise",
-            "xp": 100,
-            "date": "2026-05-19T18:43:43.079331"
-        }
-    ],
-    "trophies": [
-        "Intelligence Apprentice"
-    ],
+    "history": [],
+    "trophies": [],
     "subcategories": {
         "Strength": [
             "Strength Training",
