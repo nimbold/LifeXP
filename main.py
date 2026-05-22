@@ -307,7 +307,7 @@ class LifeXPApp:
         # sets normal values, while map() sets values for states like selected/active.
         self.style.configure('TFrame', background=self.bg_dark)
         self.style.configure('TNotebook', background=self.bg_dark, borderwidth=0)
-        self.style.configure('TNotebook.Tab', background=self.bg_light, foreground=self.text_color, padding=[16, 7], font=('{San Francisco}', 11, 'bold'))
+        self.style.configure('TNotebook.Tab', background=self.bg_light, foreground=self.text_color, padding=[18, 9], font=('{San Francisco}', 11, 'bold'))
         self.style.map('TNotebook.Tab', background=[('selected', self.accent_green)], foreground=[('selected', self.bg_dark)])
 
         self.style.configure('TButton', background=self.bg_light, foreground=self.text_color, font=('{San Francisco}', 11), padding=6)
@@ -336,9 +336,9 @@ class LifeXPApp:
 
         # Treeview is the table widget used for the quest list. Its heading, row color,
         # selection color, and row height are styled separately from other widgets.
-        self.style.configure('Treeview', background=self.bg_light, foreground=self.text_color, fieldbackground=self.bg_light, borderwidth=0, rowheight=30, font=('{San Francisco}', 11))
+        self.style.configure('Treeview', background=self.bg_light, foreground=self.text_color, fieldbackground=self.bg_light, borderwidth=0, rowheight=34, font=('{San Francisco}', 11))
         self.style.map('Treeview', background=[('selected', self.accent_green)], foreground=[('selected', self.bg_dark)])
-        self.style.configure('Treeview.Heading', background=self.bg_dark, foreground=self.accent_green, font=('{San Francisco}', 11, 'bold'))
+        self.style.configure('Treeview.Heading', background=self.bg_light, foreground=self.accent_green, relief=tk.FLAT, font=('{San Francisco}', 11, 'bold'))
 
     def fit_window_to_content(self, window, min_width=360, min_height=260, center=True):
         """Sizes a Toplevel to its requested content while staying inside the screen."""
@@ -373,31 +373,73 @@ class LifeXPApp:
         else:
             window.geometry(f"{width}x{height}")
 
+    def show_fitted_window(self, window, min_width=360, min_height=260):
+        """Fits a hidden Toplevel, then shows it after the geometry is final."""
+        # Toplevel windows can briefly appear at a tiny default size before their
+        # children finish layout. Building them while withdrawn, then deiconifying here,
+        # avoids that flash.
+        self.fit_window_to_content(window, min_width=min_width, min_height=min_height)
+        window.deiconify()
+        window.lift()
+
+    def recolor_widget_tree(self, widget, color_map):
+        """Walks through normal tk widgets and swaps old theme colors for new ones."""
+        # ttk widgets mostly follow ttk.Style, but tk.Frame/tk.Label/tk.Canvas/tk.Text
+        # keep literal colors. This helper updates those literal colors in place so a
+        # theme change does not need to destroy and rebuild the whole interface.
+        for option in ("bg", "fg", "background", "foreground", "insertbackground"):
+            try:
+                current = widget.cget(option)
+            except tk.TclError:
+                continue
+            current = str(current)
+            if current in color_map:
+                try:
+                    widget.configure(**{option: color_map[current]})
+                except tk.TclError:
+                    pass
+
+        for child in widget.winfo_children():
+            self.recolor_widget_tree(child, color_map)
+
     def setup_header(self):
         """Builds the User Account bar at the top right of the application."""
         # The header is a horizontal profile area at the top. It holds the avatar icon
         # and the account title/level labels.
-        self.header_frame = tk.Frame(self.root, bg=self.bg_dark)
-        self.header_frame.pack(side=tk.TOP, fill=tk.X, padx=20, pady=(15, 0))
+        self.header_frame = tk.Frame(self.root, bg=self.bg_light)
+        self.header_frame.pack(side=tk.TOP, fill=tk.X, padx=20, pady=(16, 0))
 
         self.settings_button = ttk.Button(self.header_frame, text="⚙ Settings", command=self.open_settings_page)
-        self.settings_button.pack(side=tk.LEFT, pady=8)
+        self.settings_button.pack(side=tk.LEFT, padx=14, pady=12)
+
+        # The app title anchors the toolbar so the top of the window feels like one
+        # intentional surface instead of loose widgets floating on the background.
+        self.app_title_frame = tk.Frame(self.header_frame, bg=self.bg_light)
+        self.app_title_frame.pack(side=tk.LEFT, padx=(4, 0))
+        self.app_title_label = tk.Label(
+            self.app_title_frame,
+            text="LifeXP",
+            font=("{San Francisco}", 18, "bold"),
+            bg=self.bg_light,
+            fg=self.text_color
+        )
+        self.app_title_label.pack(anchor=tk.W)
 
         # The avatar is drawn on a Canvas because it needs custom shapes and an arc,
         # not just normal text or buttons.
         self.avatar_size = 56
-        self.avatar_canvas = tk.Canvas(self.header_frame, width=self.avatar_size, height=self.avatar_size, bg=self.bg_dark, highlightthickness=0)
-        self.avatar_canvas.pack(side=tk.RIGHT)
+        self.avatar_canvas = tk.Canvas(self.header_frame, width=self.avatar_size, height=self.avatar_size, bg=self.bg_light, highlightthickness=0)
+        self.avatar_canvas.pack(side=tk.RIGHT, padx=(0, 14), pady=8)
 
         # This nested frame groups the two text labels so they can sit together to the
         # left of the avatar while still being part of the header.
-        self.user_info_frame = tk.Frame(self.header_frame, bg=self.bg_dark)
+        self.user_info_frame = tk.Frame(self.header_frame, bg=self.bg_light)
         self.user_info_frame.pack(side=tk.RIGHT, padx=15)
 
-        self.user_name_label = tk.Label(self.user_info_frame, text=self.data["user_info"]["name"], font=("{San Francisco}", 16, "bold"), bg=self.bg_dark, fg=self.text_color)
+        self.user_name_label = tk.Label(self.user_info_frame, text=self.data["user_info"]["name"], font=("{San Francisco}", 16, "bold"), bg=self.bg_light, fg=self.text_color)
         self.user_name_label.pack(anchor=tk.E)
 
-        self.user_level_label = tk.Label(self.user_info_frame, text="Total Lvl: 1  |  0 XP", font=("{San Francisco}", 11), bg=self.bg_dark, fg=self.accent_green)
+        self.user_level_label = tk.Label(self.user_info_frame, text="Total Lvl: 1  |  0 XP", font=("{San Francisco}", 11), bg=self.bg_light, fg=self.accent_green)
         self.user_level_label.pack(anchor=tk.E)
 
         # After the widgets exist, update_header() calculates the real saved level and
@@ -522,7 +564,7 @@ class LifeXPApp:
         # The Notebook widget creates tabs. Each tab is just a Frame that later receives
         # its own controls.
         self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(expand=True, fill='both', padx=15, pady=15)
+        self.notebook.pack(expand=True, fill='both', padx=20, pady=20)
 
         self.tab_tasks = ttk.Frame(self.notebook)
         self.tab_character = ttk.Frame(self.notebook)
@@ -641,14 +683,29 @@ class LifeXPApp:
 
     def setup_tasks_tab(self):
         """Paints the 'Quest Log' tab (task list and action buttons)."""
-        # The Quest Log tab is split into a large table on the left and action buttons
-        # on the right.
-        list_frame = ttk.LabelFrame(self.tab_tasks, text=" Active Quests ")
-        list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # The Quest Log tab is split into a large table on the left and an action panel
+        # on the right. Each area uses the same light "surface" color as the Accept
+        # Quest window so the whole app feels like one design system.
+        page = tk.Frame(self.tab_tasks, bg=self.bg_dark)
+        page.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+
+        list_frame = tk.Frame(page, bg=self.bg_light)
+        list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 14), pady=0)
+
+        tk.Label(
+            list_frame,
+            text="Active Quests",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 16, "bold")
+        ).pack(anchor=tk.W, padx=16, pady=(14, 10))
+
+        table_frame = tk.Frame(list_frame, bg=self.bg_light)
+        table_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
 
         # Treeview acts like a spreadsheet-style table. The code defines named columns,
         # then configures each heading and width.
-        self.task_tree = ttk.Treeview(list_frame, columns=("Task", "Attribute", "XP"), show="headings")
+        self.task_tree = ttk.Treeview(table_frame, columns=("Task", "Attribute", "XP"), show="headings")
         self.task_tree.heading("Task", text="Quest Name")
         self.task_tree.heading("Attribute", text="Scaling Attribute")
         self.task_tree.heading("XP", text="XP")
@@ -657,25 +714,34 @@ class LifeXPApp:
         self.task_tree.column("Attribute", width=220, anchor=tk.CENTER)
         self.task_tree.column("XP", width=100, anchor=tk.CENTER)
 
-        self.task_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.task_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # The scrollbar and table are connected in both directions: the scrollbar moves
         # the table, and the table tells the scrollbar what portion is visible.
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.task_tree.yview)
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.task_tree.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.task_tree.configure(yscrollcommand=scrollbar.set)
 
         # Buttons call methods instead of doing work directly. This is an event-driven
         # style: Tkinter waits for a click, then runs the command function.
-        control_frame = ttk.Frame(self.tab_tasks)
-        control_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=20)
+        control_frame = tk.Frame(page, bg=self.bg_light, width=190)
+        control_frame.pack(side=tk.RIGHT, fill=tk.Y)
+        control_frame.pack_propagate(False)
+
+        tk.Label(
+            control_frame,
+            text="Quest Actions",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 14, "bold")
+        ).pack(anchor=tk.W, padx=16, pady=(16, 4))
 
         # Color now carries the button meaning: neutral white for creating, green for
         # success, yellow for editing/caution, and red for destructive abandon.
-        ttk.Button(control_frame, text="Accept Quest", style="QuestAccept.TButton", command=self.add_task_dialog).pack(fill=tk.X, pady=8)
-        ttk.Button(control_frame, text="Complete Quest", style="QuestComplete.TButton", command=self.complete_task).pack(fill=tk.X, pady=8)
-        ttk.Button(control_frame, text="Edit Quest", style="QuestEdit.TButton", command=self.edit_task_dialog).pack(fill=tk.X, pady=8)
-        ttk.Button(control_frame, text="Abandon Quest", style="QuestAbandon.TButton", command=self.delete_task).pack(fill=tk.X, pady=8)
+        ttk.Button(control_frame, text="Accept Quest", style="QuestAccept.TButton", command=self.add_task_dialog).pack(fill=tk.X, padx=16, pady=(8, 8))
+        ttk.Button(control_frame, text="Complete Quest", style="QuestComplete.TButton", command=self.complete_task).pack(fill=tk.X, padx=16, pady=8)
+        ttk.Button(control_frame, text="Edit Quest", style="QuestEdit.TButton", command=self.edit_task_dialog).pack(fill=tk.X, padx=16, pady=8)
+        ttk.Button(control_frame, text="Abandon Quest", style="QuestAbandon.TButton", command=self.delete_task).pack(fill=tk.X, padx=16, pady=8)
 
     def get_tiers(self):
         # Trophy tiers expand when the character gets stronger. Below level 25 the UI
@@ -703,17 +769,23 @@ class LifeXPApp:
         # The outer loop creates one column per attribute. The inner loop creates one
         # trophy cell per tier inside that attribute column.
         for col_idx, attr in enumerate(self.attributes):
-            ttk.Label(self.trophies_frame, text=attr, font=("{San Francisco}", 10, "bold"), foreground=self.attr_colors[attr]).grid(row=0, column=col_idx, pady=(5, 0))
+            tk.Label(
+                self.trophies_frame,
+                text=attr,
+                bg=self.bg_light,
+                fg=self.attr_colors[attr],
+                font=("{San Francisco}", 10, "bold")
+            ).grid(row=0, column=col_idx, pady=(5, 0))
             self.trophies_frame.columnconfigure(col_idx, weight=1)
 
             for row_idx, (tier_name, level_req) in enumerate(tiers):
-                cell_frame = tk.Frame(self.trophies_frame, bg=self.bg_dark)
+                cell_frame = tk.Frame(self.trophies_frame, bg=self.bg_light)
                 cell_frame.grid(row=row_idx+1, column=col_idx, pady=2)
 
-                c = tk.Canvas(cell_frame, width=icon_size, height=icon_size, bg=self.bg_dark, highlightthickness=0)
+                c = tk.Canvas(cell_frame, width=icon_size, height=icon_size, bg=self.bg_light, highlightthickness=0)
                 c.pack()
 
-                tk.Label(cell_frame, text=f"Lvl {level_req}", font=("{San Francisco}", font_size), bg=self.bg_dark, fg=self.text_color).pack()
+                tk.Label(cell_frame, text=f"Lvl {level_req}", font=("{San Francisco}", font_size), bg=self.bg_light, fg=self.text_color).pack()
 
                 self.trophy_canvases[f"{attr}_{tier_name}"] = c
 
@@ -721,47 +793,91 @@ class LifeXPApp:
         """Paints the 'Character Info' tab (progress bars and pixel trophies)."""
         # The Character tab has two main parts: numeric stat progress at the top and
         # visual trophy progress at the bottom.
-        stats_frame = ttk.LabelFrame(self.tab_character, text=" Hero Attributes ")
-        stats_frame.pack(side=tk.TOP, fill=tk.X, padx=15, pady=15)
+        page = tk.Frame(self.tab_character, bg=self.bg_dark)
+        page.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+
+        stats_frame = tk.Frame(page, bg=self.bg_light)
+        stats_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 14))
+
+        tk.Label(
+            stats_frame,
+            text="Hero Attributes",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 16, "bold")
+        ).grid(row=0, column=0, columnspan=4, sticky=tk.W, padx=16, pady=(14, 10))
 
         # A dictionary stores references to labels and progress bars so other methods
         # can update them later without recreating them.
         self.stat_labels = {}
         for i, attr in enumerate(self.attributes):
-            ttk.Label(stats_frame, text=f"{attr}:", font=("{San Francisco}", 12, "bold")).grid(row=i, column=0, sticky=tk.W, padx=15, pady=10)
+            row = i + 1
+            tk.Frame(stats_frame, bg=self.attr_colors[attr], width=10, height=26).grid(row=row, column=0, sticky=tk.W, padx=(16, 8), pady=8)
+            tk.Label(
+                stats_frame,
+                text=attr,
+                bg=self.bg_light,
+                fg=self.text_color,
+                font=("{San Francisco}", 12, "bold")
+            ).grid(row=row, column=1, sticky=tk.W, padx=(0, 12), pady=8)
 
-            lbl = ttk.Label(stats_frame, text="Lvl 1 (0 / 100 XP)", font=("{San Francisco}", 12))
-            lbl.grid(row=i, column=1, sticky=tk.W, padx=15, pady=10)
+            lbl = tk.Label(stats_frame, text="Lvl 1 (0 / 100 XP)", bg=self.bg_light, fg=self.text_color, font=("{San Francisco}", 12))
+            lbl.grid(row=row, column=2, sticky=tk.W, padx=(0, 12), pady=8)
             self.stat_labels[attr] = lbl
 
             pb = ttk.Progressbar(stats_frame, orient='horizontal', length=250, mode='determinate', style=f'{attr}.Horizontal.TProgressbar')
-            pb.grid(row=i, column=2, padx=15, pady=10, sticky=tk.EW)
-            stats_frame.columnconfigure(2, weight=1)
+            pb.grid(row=row, column=3, padx=(0, 16), pady=8, sticky=tk.EW)
+            stats_frame.columnconfigure(3, weight=1)
             self.stat_labels[f"{attr}_pb"] = pb
 
         # The trophy room starts empty, then rebuild_trophy_room() fills it based on
         # the current maximum level and tier rules.
-        self.trophies_frame = ttk.LabelFrame(self.tab_character, text=" Visual Trophy Room ")
-        self.trophies_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        trophy_section = tk.Frame(page, bg=self.bg_light)
+        trophy_section.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+
+        tk.Label(
+            trophy_section,
+            text="Visual Trophy Room",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 16, "bold")
+        ).pack(anchor=tk.W, padx=16, pady=(14, 8))
+
+        self.trophies_frame = tk.Frame(trophy_section, bg=self.bg_light)
+        self.trophies_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
 
         self.trophy_canvases = {}
         self.rebuild_trophy_room()
 
     def setup_summary_tab(self):
         """Paints the 'Chronicles' tab (report buttons and visual data)."""
+        page = tk.Frame(self.tab_summary, bg=self.bg_dark)
+        page.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+
         # The Summary tab starts with three timeframe buttons. Each button passes a
         # different string into show_summary().
-        control_frame = ttk.Frame(self.tab_summary)
-        control_frame.pack(fill=tk.X, padx=15, pady=15)
+        control_frame = tk.Frame(page, bg=self.bg_light)
+        control_frame.pack(fill=tk.X, pady=(0, 14))
 
-        ttk.Button(control_frame, text="Daily Cycle", command=lambda: self.show_summary("daily")).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="Weekly Cycle", command=lambda: self.show_summary("weekly")).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="Monthly Cycle", command=lambda: self.show_summary("monthly")).pack(side=tk.LEFT, padx=5)
+        tk.Label(
+            control_frame,
+            text="Chronicles",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 16, "bold")
+        ).pack(side=tk.LEFT, padx=16, pady=14)
+
+        button_row = tk.Frame(control_frame, bg=self.bg_light)
+        button_row.pack(side=tk.RIGHT, padx=12, pady=10)
+
+        ttk.Button(button_row, text="Daily", command=lambda: self.show_summary("daily")).pack(side=tk.LEFT, padx=4)
+        ttk.Button(button_row, text="Weekly", command=lambda: self.show_summary("weekly")).pack(side=tk.LEFT, padx=4)
+        ttk.Button(button_row, text="Monthly", command=lambda: self.show_summary("monthly")).pack(side=tk.LEFT, padx=4)
 
         # Chronicles now has one large report area. Inside it, each attribute gets a
         # colored square that lists completed activity subcategories for the timeframe.
-        report_frame = ttk.LabelFrame(self.tab_summary, text=" Activity Report ")
-        report_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        report_frame = tk.Frame(page, bg=self.bg_light)
+        report_frame.pack(fill=tk.BOTH, expand=True)
 
         # Here we create a dynamic title label for the report, which will update 
         # based on the selected timeframe (Daily, Weekly, Monthly).
@@ -769,15 +885,15 @@ class LifeXPApp:
             report_frame,
             text="",
             font=("{San Francisco}", 15, "bold"),
-            bg=self.bg_dark,
+            bg=self.bg_light,
             fg=self.text_color
         )
-        self.summary_title_label.pack(fill=tk.X, padx=10, pady=(10, 6))
+        self.summary_title_label.pack(fill=tk.X, padx=16, pady=(14, 8))
 
         # This container frame holds the summary cards side-by-side. We use a grid
         # layout inside it to evenly distribute one card per RPG attribute.
-        cards_frame = tk.Frame(report_frame, bg=self.bg_dark)
-        cards_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        cards_frame = tk.Frame(report_frame, bg=self.bg_light)
+        cards_frame.pack(fill=tk.X, padx=12, pady=(0, 14))
 
         self.summary_cards = {}
         for i, attr in enumerate(self.attributes):
@@ -835,27 +951,38 @@ class LifeXPApp:
 
         # tk.Toplevel creates a new floating window on top of the main root window.
         self.settings_window = tk.Toplevel(self.root)
+        self.settings_window.withdraw()
         self.settings_window.title("Settings")
         self.settings_window.configure(bg=self.bg_dark)
         self.settings_window.transient(self.root)
 
+        surface = tk.Frame(self.settings_window, bg=self.bg_dark)
+        surface.pack(fill=tk.BOTH, expand=True, padx=22, pady=20)
+
         header = tk.Label(
-            self.settings_window,
+            surface,
             text="Settings",
-            font=("{San Francisco}", 18, "bold"),
+            font=("{San Francisco}", 22, "bold"),
             bg=self.bg_dark,
             fg=self.text_color
         )
-        header.pack(fill=tk.X, padx=18, pady=(18, 8))
+        header.pack(fill=tk.X)
 
         # Themes use a compact drop-down so the settings window has room for more app
         # controls without turning into a long scroll of palette rows.
-        themes_frame = ttk.LabelFrame(self.settings_window, text=" Themes ")
-        themes_frame.pack(fill=tk.X, padx=18, pady=(0, 14))
+        themes_frame = tk.Frame(surface, bg=self.bg_light)
+        themes_frame.pack(fill=tk.X, pady=(16, 14))
+        tk.Label(
+            themes_frame,
+            text="Themes",
+            font=("{San Francisco}", 14, "bold"),
+            bg=self.bg_light,
+            fg=self.text_color
+        ).pack(anchor=tk.W, padx=14, pady=(12, 2))
 
         selected_theme = tk.StringVar(value=self.current_theme_name)
 
-        picker_row = tk.Frame(themes_frame, bg=self.bg_dark)
+        picker_row = tk.Frame(themes_frame, bg=self.bg_light)
         picker_row.pack(fill=tk.X, padx=12, pady=(12, 8))
 
         theme_picker = ttk.Combobox(
@@ -873,17 +1000,17 @@ class LifeXPApp:
             command=lambda: self.set_theme(selected_theme.get())
         ).pack(side=tk.RIGHT, padx=(10, 0))
 
-        preview_row = tk.Frame(themes_frame, bg=self.bg_dark)
+        preview_row = tk.Frame(themes_frame, bg=self.bg_light)
         preview_row.pack(fill=tk.X, padx=12, pady=(0, 12))
 
-        swatches = tk.Frame(preview_row, bg=self.bg_dark)
+        swatches = tk.Frame(preview_row, bg=self.bg_light)
         swatches.pack(side=tk.LEFT, padx=(0, 10))
 
         description_label = tk.Label(
             preview_row,
             text="",
             font=("{San Francisco}", 10),
-            bg=self.bg_dark,
+            bg=self.bg_light,
             fg=self.text_color,
             wraplength=400,
             justify=tk.LEFT
@@ -904,17 +1031,24 @@ class LifeXPApp:
         theme_picker.bind("<<ComboboxSelected>>", update_theme_preview)
         update_theme_preview()
 
-        reset_frame = ttk.LabelFrame(self.settings_window, text=" Progress ")
-        reset_frame.pack(fill=tk.X, padx=18, pady=(0, 14))
+        reset_frame = tk.Frame(surface, bg=self.bg_light)
+        reset_frame.pack(fill=tk.X, pady=(0, 14))
+        tk.Label(
+            reset_frame,
+            text="Progress",
+            font=("{San Francisco}", 14, "bold"),
+            bg=self.bg_light,
+            fg=self.text_color
+        ).pack(anchor=tk.W, padx=14, pady=(12, 2))
 
-        reset_body = tk.Frame(reset_frame, bg=self.bg_dark)
+        reset_body = tk.Frame(reset_frame, bg=self.bg_light)
         reset_body.pack(fill=tk.X, padx=12, pady=12)
 
         tk.Label(
             reset_body,
             text="Reset all XP, levels, quests, history, and trophies.",
             font=("{San Francisco}", 10),
-            bg=self.bg_dark,
+            bg=self.bg_light,
             fg=self.text_color,
             wraplength=340,
             justify=tk.LEFT
@@ -927,8 +1061,15 @@ class LifeXPApp:
             command=self.reset_progress
         ).pack(side=tk.RIGHT, padx=(10, 0))
 
-        about_frame = ttk.LabelFrame(self.settings_window, text=" About ")
-        about_frame.pack(fill=tk.X, padx=18, pady=(0, 18))
+        about_frame = tk.Frame(surface, bg=self.bg_light)
+        about_frame.pack(fill=tk.X)
+        tk.Label(
+            about_frame,
+            text="About",
+            font=("{San Francisco}", 14, "bold"),
+            bg=self.bg_light,
+            fg=self.text_color
+        ).pack(anchor=tk.W, padx=14, pady=(12, 2))
 
         # The About block uses wraplength so longer text stays inside the Settings
         # window instead of forcing the user to resize it by hand.
@@ -940,13 +1081,13 @@ class LifeXPApp:
                 f"Created by NimBold\nVersion {APP_VERSION}"
             ),
             font=("{San Francisco}", 11),
-            bg=self.bg_dark,
+            bg=self.bg_light,
             fg=self.text_color,
             wraplength=490,
             justify=tk.LEFT
         ).pack(anchor=tk.W, fill=tk.X, padx=12, pady=12)
 
-        self.fit_window_to_content(self.settings_window, min_width=560, min_height=450)
+        self.show_fitted_window(self.settings_window, min_width=560, min_height=450)
 
     def set_theme(self, theme_name, save=True):
         """Applies a selected theme immediately and optionally saves it."""
@@ -954,10 +1095,27 @@ class LifeXPApp:
         if theme_name not in self.themes:
             return
 
+        previous_bg_dark = self.bg_dark
+        previous_bg_light = self.bg_light
+        previous_accent = self.accent_green
+        previous_text = self.text_color
+        previous_card_text = self.card_text_color
+        previous_attr_colors = self.attr_colors.copy()
+
         # Update the active theme name and re-run the styling method.
         # This will instantly alter the appearance of many default ttk widgets.
         self.current_theme_name = theme_name
         self.apply_modern_theme()
+
+        color_map = {
+            previous_bg_dark: self.bg_dark,
+            previous_bg_light: self.bg_light,
+            previous_accent: self.accent_green,
+            previous_text: self.text_color,
+            previous_card_text: self.card_text_color
+        }
+        for attr, previous_color in previous_attr_colors.items():
+            color_map[previous_color] = self.attr_colors[attr]
 
         # Update the saved user preferences so the theme persists on next launch.
         if hasattr(self, "data"):
@@ -965,12 +1123,17 @@ class LifeXPApp:
             if save:
                 self.save_data()
 
-        self.refresh_theme_widgets()
-
-        if self.settings_window and self.settings_window.winfo_exists():
-            self.settings_window.destroy()
-            self.settings_window = None
-            self.open_settings_page()
+        # Many newer UI pieces are normal tk widgets, not ttk widgets. They can be
+        # recolored in place by swapping old theme colors for new ones. That avoids the
+        # visible flicker caused by destroying and recreating the whole interface.
+        if hasattr(self, "header_frame") and hasattr(self, "notebook"):
+            self.recolor_widget_tree(self.root, color_map)
+            if self.settings_window and self.settings_window.winfo_exists():
+                self.recolor_widget_tree(self.settings_window, color_map)
+            self.update_stats_display()
+            self.refresh_task_list()
+        else:
+            self.refresh_theme_widgets()
 
     def reset_progress(self):
         """Clears progression data after an explicit warning confirmation."""
@@ -1005,14 +1168,17 @@ class LifeXPApp:
         self.root.configure(bg=self.bg_dark)
 
         if hasattr(self, "header_frame"):
-            self.header_frame.configure(bg=self.bg_dark)
-            self.avatar_canvas.configure(bg=self.bg_dark)
-            self.user_info_frame.configure(bg=self.bg_dark)
-            self.user_name_label.configure(bg=self.bg_dark)
-            self.user_level_label.configure(bg=self.bg_dark, fg=self.accent_green)
+            self.header_frame.configure(bg=self.bg_light)
+            self.avatar_canvas.configure(bg=self.bg_light)
+            self.user_info_frame.configure(bg=self.bg_light)
+            self.user_name_label.configure(bg=self.bg_light)
+            self.user_level_label.configure(bg=self.bg_light, fg=self.accent_green)
+            if hasattr(self, "app_title_frame"):
+                self.app_title_frame.configure(bg=self.bg_light)
+                self.app_title_label.configure(bg=self.bg_light, fg=self.text_color)
 
         if hasattr(self, "summary_title_label"):
-            self.summary_title_label.configure(bg=self.bg_dark, fg=self.text_color)
+            self.summary_title_label.configure(bg=self.bg_light, fg=self.text_color)
             for attr, widgets in self.summary_cards.items():
                 widgets["title"].master.configure(bg=self.attr_colors[attr])
                 widgets["title"].configure(bg=self.attr_colors[attr], fg=self.card_text_color)
@@ -1246,10 +1412,10 @@ class LifeXPApp:
         # A Toplevel creates a second window for adding a quest. grab_set() makes it
         # modal, meaning the user should finish this dialog before returning to the app.
         dialog = tk.Toplevel(self.root)
+        dialog.withdraw()
         dialog.title("Accept Quest")
         dialog.configure(bg=self.bg_dark)
         dialog.transient(self.root)
-        dialog.grab_set()
 
         surface = tk.Frame(dialog, bg=self.bg_dark)
         surface.pack(fill=tk.BOTH, expand=True, padx=24, pady=22)
@@ -1613,7 +1779,8 @@ class LifeXPApp:
         refresh_category_chips()
         update_suggestions()
         draw_difficulty_slider()
-        self.fit_window_to_content(dialog, min_width=560, min_height=660)
+        self.show_fitted_window(dialog, min_width=560, min_height=660)
+        dialog.grab_set()
         activity_entry.focus_set()
         dialog.bind("<Return>", lambda event: save())
         dialog.bind("<Escape>", lambda event: dialog.destroy())
