@@ -72,6 +72,8 @@ This project is useful for practicing:
 1.01
 ```
 
-## Origin
+## About
 
-The first version was generated with Gemini. It is now being reviewed, refactored, commented, and expanded as a hands-on programming learning project.
+LifeXP is built as both a personal productivity tool and a programming practice project. The app uses RPG feedback to make repeated daily effort visible: quests become XP, XP becomes attribute growth, and history becomes a record of what you actually spent time improving.
+
+The project is intentionally kept small, readable, and heavily commented so each feature can teach a practical programming idea without hiding the logic behind a large framework.
