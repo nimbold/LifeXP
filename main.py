@@ -51,6 +51,10 @@ class LifeXPApp:
         self.current_theme_name = "Nord RPG"
         self.settings_window = None
 
+        # Popup sequence gives simultaneous reward messages small vertical offsets so
+        # they fade independently instead of covering the exact same screen position.
+        self.popup_sequence = 0
+
         # Visual configuration lives near the top so the rest of the app can reuse it.
         # Each attribute gets one color, which is later used in bars, graphs, and art.
         self.attr_colors = self.themes[self.current_theme_name]["attr_colors"].copy()
@@ -1368,8 +1372,10 @@ class LifeXPApp:
         self.data["history"].append(completion_record)
 
         cx, cy = self.get_center()
-        xp_duration = 140 if level_events else 70
-        self.play_floating_text(f"+{xp_gain} XP!", "#EBCB8B", cx, cy, size=24, duration_steps=xp_duration)
+        # XP text is shorter when nothing else follows, and slightly longer when it
+        # leads into level/rank messages. This keeps reward chains readable.
+        xp_duration = 118 if level_events else 82
+        self.play_floating_text(f"+{xp_gain} XP!", "#EBCB8B", cx, cy, size=30, duration_steps=xp_duration, fade_steps=38)
         self.play_particles("#EBCB8B", cx, cy, count=25, gravity=True)
 
         self.save_data()
@@ -1666,10 +1672,34 @@ class LifeXPApp:
 
         return safe_x, safe_y
 
+    def ease_out_cubic(self, progress):
+        """Starts fast and slows down near the end for natural UI motion."""
+        # Cubic easing keeps the animation snappy without ending in a hard stop.
+        progress = max(0.0, min(progress, 1.0))
+        return 1 - ((1 - progress) ** 3)
+
+    def ease_smoothstep(self, progress):
+        """Blends from 0 to 1 with soft acceleration and soft deceleration."""
+        # Smoothstep is useful for opacity because it avoids both sudden starts and
+        # sudden endings. That makes stacked level-up popups feel less jumpy.
+        progress = max(0.0, min(progress, 1.0))
+        return progress * progress * (3 - (2 * progress))
+
+    def set_popup_alpha(self, popup, alpha):
+        """Changes a popup's transparency when the operating system supports it."""
+        # Some Tk builds do not support window alpha. The try block keeps animations
+        # working everywhere, even if transparency is ignored by the platform.
+        try:
+            popup.attributes("-alpha", max(0.0, min(alpha, 1.0)))
+        except tk.TclError:
+            pass
+
     def schedule_level_up_sequence(self, level_events, rank_event=None):
         """Plays completion rewards after the XP popup has had a short moment."""
-        delay = 1000
-        spacing = 1000
+        # Level and rank messages are staggered just enough to be readable while still
+        # feeling like one combo reward sequence.
+        delay = 720
+        spacing = 620
 
         for index, event in enumerate(level_events):
             self.root.after(delay + (index * spacing), lambda e=event: self.play_level_up_animation(e))
@@ -1684,25 +1714,25 @@ class LifeXPApp:
         attr = event["attribute"]
         level = event["level"]
 
-        self.play_floating_text(f"{attr} leveled up ⬆️{level}", "#B48EAD", cx, cy + 55, size=22, shake=True, duration_steps=220, fade_steps=40)
+        self.play_floating_text(f"{attr} leveled up ⬆️{level}", "#B48EAD", cx, cy + 55, size=28, shake=True, duration_steps=150, fade_steps=56)
         self.play_particles("#B48EAD", cx, cy + 55, count=95, gravity=False, rainbow=True)
         self.root.after(90, lambda: self.play_particles(self.attr_colors[attr], cx - 70, cy + 90, count=35, gravity=False, rainbow=True))
         self.root.after(140, lambda: self.play_particles(self.attr_colors[attr], cx + 70, cy + 90, count=35, gravity=False, rainbow=True))
 
         if event["trophy"]:
-            self.root.after(260, lambda: self.play_trophy_animation(event["trophy"], cx, cy + 110))
+            self.root.after(420, lambda: self.play_trophy_animation(event["trophy"], cx, cy + 112))
 
     def play_rank_up_animation(self, title, color):
         """Celebrates account rank-ups with a wide rainbow burst."""
         x_pos = self.root.winfo_width() - 80 if self.root.winfo_width() > 1 else 750
-        self.play_floating_text(f"🌟 RANK UP: {title.upper()}!", color, x_pos, 80, size=22)
+        self.play_floating_text(f"🌟 RANK UP: {title.upper()}!", color, x_pos, 80, size=28, duration_steps=145, fade_steps=54)
         self.play_particles(color, x_pos + 30, 40, count=95, gravity=False, rainbow=True)
         self.root.after(90, lambda: self.play_particles(color, x_pos - 55, 90, count=35, gravity=False, rainbow=True))
         self.root.after(140, lambda: self.play_particles(color, x_pos + 10, 125, count=35, gravity=False, rainbow=True))
 
     def play_trophy_animation(self, trophy_name, x, y):
         """Shows a trophy reward after the level-up burst."""
-        self.play_floating_text(f"🏆 {trophy_name.upper()} EARNED! 🏆", "#EBCB8B", x, y, size=20, duration_steps=220, fade_steps=40)
+        self.play_floating_text(f"🏆 {trophy_name.upper()} EARNED! 🏆", "#EBCB8B", x, y, size=25, duration_steps=145, fade_steps=54)
         self.play_particles("#EBCB8B", x, y, count=50, gravity=True, rainbow=True)
 
     def play_floating_text(self, text, color, x, y, size=18, shake=False, duration_steps=70, fade_steps=20):
@@ -1710,15 +1740,16 @@ class LifeXPApp:
         # Floating feedback is shown in a tiny borderless Toplevel window. Toplevel
         # supports transparency, so the popup can feel lighter than a normal widget.
         root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
+        root_h = self.root.winfo_height() if self.root.winfo_height() > 1 else 700
+        self.popup_sequence += 1
+        stack_offset = ((self.popup_sequence - 1) % 5) * 34
+        stack_direction = 1 if y < root_h * 0.3 else -1
         popup = tk.Toplevel(self.root)
         popup.overrideredirect(True)
         popup.configure(bg=self.bg_light)
-        try:
-            popup.attributes("-alpha", 0.86)
-        except tk.TclError:
-            pass
+        self.set_popup_alpha(popup, 0.0)
 
-        display_size = max(11, size - 6)
+        display_size = max(14, size)
         box = tk.Frame(
             popup,
             bg=self.bg_light,
@@ -1737,8 +1768,8 @@ class LifeXPApp:
             bg=self.bg_light,
             wraplength=max(140, root_w - 120),
             justify=tk.CENTER,
-            padx=12,
-            pady=8,
+            padx=18,
+            pady=12,
             bd=0,
             relief=tk.FLAT,
             highlightthickness=0
@@ -1748,7 +1779,9 @@ class LifeXPApp:
         popup.update_idletasks()
         popup_w = popup.winfo_reqwidth()
         popup_h = popup.winfo_reqheight()
-        safe_x, safe_y = self.clamp_box_position(popup_w, popup_h, x, y)
+        # Top-corner popups stack downward, while center-screen reward popups stack
+        # upward. This avoids edge clamping when several animations start together.
+        safe_x, safe_y = self.clamp_box_position(popup_w, popup_h, x, y + (stack_offset * stack_direction))
         popup.geometry(f"+{self.root.winfo_rootx() + safe_x - popup_w // 2}+{self.root.winfo_rooty() + safe_y - popup_h // 2}")
 
         # Color fading works by converting hex colors to RGB numbers, blending each
@@ -1765,25 +1798,42 @@ class LifeXPApp:
             return f"#{r:02x}{g:02x}{b:02x}"
 
         # Tkinter animations usually use after(): do one tiny update, then schedule the
-        # next update a few milliseconds later.
-        def animate(step=0, current_size=display_size, current_y=safe_y, w=popup_w, h=popup_h):
-            total_steps = duration_steps
+        # next update a few milliseconds later. This popup uses three phases:
+        # fade in quickly, hover while drifting upward, then fade out smoothly.
+        max_alpha = 0.94
+        frame_delay = 16
+        total_steps = max(duration_steps, fade_steps + 12)
+        fade_in_steps = max(10, min(18, total_steps // 5))
+        pop_steps = 12
 
+        def animate(step=0, current_y=safe_y, w=popup_w, h=popup_h):
             if step < total_steps:
-                new_size = current_size
+                progress = step / float(total_steps)
+                new_size = display_size
                 new_w, new_h = w, h
 
-                if step < 6:
-                    new_size += 1
-                    lbl.config(font=("Courier", new_size, "bold"))
+                # The first few frames make the text pop like an RPG reward banner,
+                # then settle back to its normal size for readability.
+                if step < pop_steps:
+                    pop_progress = step / float(pop_steps)
+                    pop_amount = 4 * (1 - abs((pop_progress * 2) - 1))
+                    new_size = display_size + round(pop_amount)
+                elif step == pop_steps:
+                    new_size = display_size
+
+                lbl.config(font=("Courier", new_size, "bold"))
+                if step <= pop_steps:
                     popup.update_idletasks()
                     new_w = popup.winfo_reqwidth()
                     new_h = popup.winfo_reqheight()
 
-                current_y -= 1
+                # Drift uses easing so the popup slows as it rises. A small stack offset
+                # keeps simultaneous messages from sitting exactly on top of each other.
+                drift = int(54 * self.ease_out_cubic(progress))
+                current_y = safe_y - drift
 
                 if shake:
-                    # Subtle, dampening retro shake effect
+                    # Subtle, dampening retro shake effect.
                     amplitude = max(0, 3 - (step // 8))
                     dx = random.randint(-amplitude, amplitude)
                     dy = random.randint(-amplitude, amplitude)
@@ -1793,12 +1843,20 @@ class LifeXPApp:
                 safe_x, safe_current_y = self.clamp_box_position(new_w, new_h, x, current_y)
                 popup.geometry(f"+{self.root.winfo_rootx() + safe_x - new_w // 2 + dx}+{self.root.winfo_rooty() + safe_current_y - new_h // 2 + dy}")
 
-                if step > total_steps - fade_steps:
+                if step < fade_in_steps:
+                    fade_in_ratio = self.ease_out_cubic(step / float(fade_in_steps))
+                    alpha = max_alpha * fade_in_ratio
+                elif step > total_steps - fade_steps:
                     fade_ratio = (step - (total_steps - fade_steps)) / float(fade_steps)
-                    faded_color = blend_color(color, self.bg_dark, fade_ratio)
-                    lbl.config(fg=faded_color)
+                    eased_fade = self.ease_smoothstep(fade_ratio)
+                    alpha = max_alpha * (1 - eased_fade)
+                    lbl.config(fg=blend_color(color, self.bg_dark, eased_fade))
+                else:
+                    alpha = max_alpha
 
-                self.root.after(30, animate, step + 1, new_size, current_y, new_w, new_h)
+                self.set_popup_alpha(popup, alpha)
+
+                self.root.after(frame_delay, animate, step + 1, current_y, new_w, new_h)
             else:
                 popup.destroy()
 
