@@ -13,6 +13,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from datetime import datetime, timedelta
 import json
+import math
 import os
 import random
 import time
@@ -379,8 +380,51 @@ class LifeXPApp:
         # children finish layout. Building them while withdrawn, then deiconifying here,
         # avoids that flash.
         self.fit_window_to_content(window, min_width=min_width, min_height=min_height)
+        self.animate_window_open(window)
+
+    def animate_window_open(self, window):
+        """Shows a Toplevel with a short fade-and-rise transition."""
+        # Motion guidelines favor quick, subtle transitions that explain state changes
+        # without making the user wait. This uses the already-final window size, then
+        # starts 10 pixels lower and eases into place over about 150ms.
+        geometry = window.geometry()
+        try:
+            size_part, x_part, y_part = geometry.split("+")
+            width, height = size_part.split("x")
+            final_x = int(x_part)
+            final_y = int(y_part)
+            width = int(width)
+            height = int(height)
+        except ValueError:
+            window.deiconify()
+            window.lift()
+            return
+
+        start_y = final_y + 10
+        frames = 9
+        delay_ms = 16
+        self.set_popup_alpha(window, 0.0)
+        window.geometry(f"{width}x{height}+{final_x}+{start_y}")
         window.deiconify()
         window.lift()
+
+        def animate(frame=0):
+            if not window.winfo_exists():
+                return
+
+            progress = min(frame / float(frames), 1.0)
+            eased = self.ease_out_cubic(progress)
+            current_y = int(start_y + ((final_y - start_y) * eased))
+            window.geometry(f"{width}x{height}+{final_x}+{current_y}")
+            self.set_popup_alpha(window, eased)
+
+            if frame < frames:
+                self.root.after(delay_ms, animate, frame + 1)
+            else:
+                window.geometry(f"{width}x{height}+{final_x}+{final_y}")
+                self.set_popup_alpha(window, 1.0)
+
+        animate()
 
     def recolor_widget_tree(self, widget, color_map):
         """Walks through normal tk widgets and swaps old theme colors for new ones."""
@@ -1875,8 +1919,11 @@ class LifeXPApp:
         cx, cy = self.get_center()
         # XP gain always gets a fixed readable duration. If level-up popups are also
         # needed, they are scheduled after it rather than shortening this popup.
-        self.play_floating_text(f"+{xp_gain} XP!", "#EBCB8B", cx, cy, size=30, duration_steps=XP_POPUP_STEPS, fade_steps=XP_POPUP_FADE_STEPS)
-        self.play_particles("#EBCB8B", cx, cy, count=25, gravity=True)
+        # play_floating_text() now returns the final popup box position. The XP particles
+        # use that box as their source so sparks appear to come from the reward label,
+        # while physics=True keeps the older gravity/falling feel.
+        popup_box = self.play_floating_text(f"+{xp_gain} XP!", "#EBCB8B", cx, cy, size=30, duration_steps=XP_POPUP_STEPS, fade_steps=XP_POPUP_FADE_STEPS)
+        self.play_firework_particles("#EBCB8B", popup_box, count=34, palette=["#EBCB8B", "#FFD166", "#F59E0B", "#F97316"], physics=True)
 
         if level_events or rank_event:
             self.schedule_level_up_sequence(level_events, rank_event)
@@ -2237,10 +2284,10 @@ class LifeXPApp:
         attr = event["attribute"]
         level = event["level"]
 
-        self.play_floating_text(f"{attr} leveled up {level}", "#B48EAD", cx, cy + 55, size=28, shake=True, duration_steps=LEVEL_UP_POPUP_STEPS, fade_steps=LEVEL_UP_POPUP_FADE_STEPS, trailing_icon=self.create_level_up_arrow_icon("#FF9E00"))
-        self.play_particles("#B48EAD", cx, cy + 55, count=95, gravity=False, rainbow=True)
-        self.root.after(90, lambda: self.play_particles(self.attr_colors[attr], cx - 70, cy + 90, count=35, gravity=False, rainbow=True))
-        self.root.after(140, lambda: self.play_particles(self.attr_colors[attr], cx + 70, cy + 90, count=35, gravity=False, rainbow=True))
+        popup_box = self.play_floating_text(f"{attr} leveled up {level}", "#B48EAD", cx, cy + 55, size=28, shake=True, duration_steps=LEVEL_UP_POPUP_STEPS, fade_steps=LEVEL_UP_POPUP_FADE_STEPS, trailing_icon=self.create_level_up_arrow_icon("#FF9E00"))
+        # Level-up celebrations use more sparks and a later fade than XP rewards. They
+        # still run in one shared animation loop so the larger burst does not tank FPS.
+        self.play_firework_particles(self.attr_colors[attr], popup_box, count=112, rainbow=True, life_range=(76, 118), fade_start_ratio=0.52)
 
         if event["trophy"]:
             self.root.after(self.popup_overlap_start_ms(LEVEL_UP_POPUP_STEPS), lambda: self.play_trophy_animation(event["trophy"], cx, cy + 112))
@@ -2248,10 +2295,10 @@ class LifeXPApp:
     def play_rank_up_animation(self, title, color):
         """Celebrates account rank-ups with a wide rainbow burst."""
         x_pos = self.root.winfo_width() - 80 if self.root.winfo_width() > 1 else 750
-        self.play_floating_text(f"RANK UP: {title.upper()}!", color, x_pos, 80, size=28, duration_steps=RANK_UP_POPUP_STEPS, fade_steps=RANK_UP_POPUP_FADE_STEPS, trailing_icon=self.create_level_up_arrow_icon("#FFD700"))
-        self.play_particles(color, x_pos + 30, 40, count=95, gravity=False, rainbow=True)
-        self.root.after(90, lambda: self.play_particles(color, x_pos - 55, 90, count=35, gravity=False, rainbow=True))
-        self.root.after(140, lambda: self.play_particles(color, x_pos + 10, 125, count=35, gravity=False, rainbow=True))
+        popup_box = self.play_floating_text(f"RANK UP: {title.upper()}!", color, x_pos, 80, size=28, duration_steps=RANK_UP_POPUP_STEPS, fade_steps=RANK_UP_POPUP_FADE_STEPS, trailing_icon=self.create_level_up_arrow_icon("#FFD700"))
+        # Rank-up is the biggest reward, so it gets the largest and slowest fading
+        # burst. The parameters keep that intensity without launching extra loops.
+        self.play_firework_particles(color, popup_box, count=124, rainbow=True, life_range=(82, 128), fade_start_ratio=0.56)
 
     def play_trophy_animation(self, trophy_name, x, y):
         """Shows a trophy reward after the level-up burst."""
@@ -2414,6 +2461,118 @@ class LifeXPApp:
                 self.root.after(next_delay, animate, step + 1, new_size, new_w, new_h)
             else:
                 popup.destroy()
+
+        animate()
+        # Returning the box lets particle effects use the actual popup bounds instead
+        # of guessing from the requested x/y point. That makes sparks feel attached to
+        # the reward label even when clamping or stacking moves the popup.
+        return {"x": safe_x, "y": safe_y, "width": popup_w, "height": popup_h}
+
+    def play_firework_particles(self, color, source_box, count=80, rainbow=False, palette=None, physics=False, life_range=(40, 68), fade_start_ratio=0.35):
+        """Spawns radial burst particles for level-up and rank-up celebrations."""
+        # This is separate from play_particles() because it starts from the popup box
+        # instead of a single point. One combined loop per popup keeps frame rate stable.
+        # Parameters:
+        # - count controls how many spark widgets are created.
+        # - palette overrides the colors, useful for gold/orange XP rewards.
+        # - physics adds stronger downward gravity for XP-style falling sparks.
+        # - life_range controls how long particles remain alive.
+        # - fade_start_ratio controls how late the slow fade begins.
+        particles = []
+        rainbow_colors = ["#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#B48EAD", "#88C0D0", "#ECEFF4"]
+        active_palette = palette or (rainbow_colors if rainbow else [color])
+        root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
+        root_h = self.root.winfo_height() if self.root.winfo_height() > 1 else 700
+        box_x = source_box["x"]
+        box_y = source_box["y"]
+        half_w = max(18, source_box["width"] // 2)
+        half_h = max(14, source_box["height"] // 2)
+
+        def blend_color(c1, c2, ratio):
+            c1, c2 = c1.lstrip('#'), c2.lstrip('#')
+            r1, g1, b1 = int(c1[0:2], 16), int(c1[2:4], 16), int(c1[4:6], 16)
+            r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
+            r = int(r1 + (r2 - r1) * ratio)
+            g = int(g1 + (g2 - g1) * ratio)
+            b = int(b1 + (b2 - b1) * ratio)
+            return f"#{r:02x}{g:02x}{b:02x}"
+
+        for i in range(count):
+            # Evenly stepping around the circle gives the burst a clear firework ring.
+            # A small random offset keeps it from looking mathematically perfect.
+            angle = ((i / float(count)) * math.tau) + random.uniform(-0.18, 0.18)
+            direction_x = math.cos(angle)
+            direction_y = math.sin(angle)
+            # edge_scale finds a point on the popup rectangle in the particle's travel
+            # direction. Starting from the box edge sells the idea that sparks burst out
+            # of the quote box instead of appearing from the middle of the screen.
+            edge_scale = min(
+                half_w / max(abs(direction_x), 0.18),
+                half_h / max(abs(direction_y), 0.18)
+            )
+            start_x = max(0, min(box_x + (direction_x * edge_scale * random.uniform(0.55, 1.0)), root_w - 12))
+            start_y = max(0, min(box_y + (direction_y * edge_scale * random.uniform(0.55, 1.0)), root_h - 12))
+            speed = random.uniform(3.2, 9.6) if physics else random.uniform(3.8, 10.8)
+            size = random.randint(3, 10)
+            life = random.randint(*life_range)
+            p_color = random.choice(active_palette)
+
+            particle = tk.Frame(self.root, bg=p_color, width=size, height=size)
+            particle.place(x=start_x, y=start_y)
+
+            particles.append({
+                "widget": particle,
+                "x": float(start_x),
+                "y": float(start_y),
+                "dx": speed * math.cos(angle),
+                "dy": speed * math.sin(angle),
+                "size": size,
+                "life": life,
+                "max_life": life,
+                "color": p_color,
+                "fade_tick": 0
+            })
+
+        def animate():
+            active = False
+            root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
+            root_h = self.root.winfo_height() if self.root.winfo_height() > 1 else 700
+
+            for particle in particles:
+                if particle["life"] > 0:
+                    widget = particle["widget"]
+
+                    # Drag slows the burst over time. A tiny gravity pull makes late
+                    # sparks drift down like fireworks instead of freezing in place.
+                    # XP rewards use a stronger gravity term through physics=True.
+                    particle["x"] += particle["dx"]
+                    particle["y"] += particle["dy"]
+                    particle["dx"] *= 0.94 if physics else 0.955
+                    particle["dy"] = (particle["dy"] * (0.94 if physics else 0.955)) + (0.34 if physics else 0.08)
+
+                    size = particle["size"]
+                    next_x = max(0, min(int(particle["x"]), root_w - size))
+                    next_y = max(0, min(int(particle["y"]), root_h - size))
+
+                    # Tkinter Frame widgets do not support opacity, so the fade is a
+                    # color fade toward the current background. Updating every third
+                    # frame keeps the fade smooth enough without extra per-frame cost.
+                    age = particle["max_life"] - particle["life"]
+                    fade_start = int(particle["max_life"] * fade_start_ratio)
+                    if age >= fade_start and particle["fade_tick"] % 3 == 0:
+                        fade_ratio = (age - fade_start) / float(max(1, particle["max_life"] - fade_start))
+                        widget.configure(bg=blend_color(particle["color"], self.bg_dark, self.ease_smoothstep(fade_ratio)))
+                    particle["fade_tick"] += 1
+
+                    widget.place(x=next_x, y=next_y)
+                    particle["life"] -= 1
+                    active = True
+                elif particle["life"] == 0:
+                    particle["widget"].destroy()
+                    particle["life"] -= 1
+
+            if active:
+                self.root.after(20, animate)
 
         animate()
 
