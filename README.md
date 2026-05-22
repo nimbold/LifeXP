@@ -1,18 +1,31 @@
 # LifeXP
 
-LifeXP is a Python Tkinter desktop app that turns everyday tasks into a small role-playing game. You add quests, complete them for XP, level up five character attributes, unlock visual trophies, and review your activity in daily, weekly, and monthly Chronicles.
+LifeXP is a Python Tkinter desktop app that turns everyday tasks into a small role-playing game. You accept quests, complete them for XP, level up five character attributes, unlock pixel trophies, and review your activity through daily, weekly, and monthly Chronicles.
 
 This is also a first-project learning course. The code is intentionally commented in block-level notes so it explains how the app works without making every line unreadable.
 
 ## Features
 
-- Quest Log for accepting, completing, editing, and abandoning quests
-- Five RPG attributes: Strength, Agility, Intelligence, Charisma, and Constitution
-- XP rewards, attribute levels, account rank titles, and trophy milestones
-- Chronicles page with colored attribute cards and activity combo multipliers
-- Theme settings with Apple-inspired and famous developer/game palettes
-- Pixel-style visual identity with lightweight animations
-- Local JSON save file for progress, history, settings, and task data
+- Quest Log for accepting, completing, editing, and abandoning quests.
+- Autocomplete activity names built from default and previously used subcategories.
+- Difficulty slider that converts everyday task difficulty into XP rewards.
+- Five RPG attributes: Strength, Agility, Intelligence, Charisma, and Constitution.
+- Attribute levels, total account level, rank titles, roman numerals, and avatar progress ring.
+- Visual Trophy Room with pixel trophies for milestone levels.
+- Chronicles page with daily, weekly, and monthly activity reports.
+- Colored activity cards with XP totals and combo-style repeat counters.
+- Settings page for themes, progress reset, and app information.
+- Apple-inspired and developer/game-inspired themes, including Nord, Dracula, Catppuccin, Gruvbox, Tokyo Night, and Solarized Dark.
+- Smooth RPG-style popup animations for XP, quest actions, level-ups, rank-ups, trophies, and particle bursts.
+- Local JSON save file for progress, history, settings, tasks, trophies, and custom subcategories.
+- Save-file migration logic for older attribute names and older subcategory lists.
+
+## App Screens
+
+- `Quest Log`: manage active quests and XP rewards.
+- `Character Info`: inspect attribute levels, progress bars, trophies, account rank, and avatar art.
+- `Chronicles`: review activity history by day, week, or month.
+- `Settings`: change themes, reset progress, and view app version details.
 
 ## Requirements
 
@@ -31,6 +44,8 @@ The app saves progress in:
 lifexp_data.json
 ```
 
+This file is normal app data. It changes when you complete quests, change themes, unlock trophies, or reset progress.
+
 ## Project Files
 
 ```text
@@ -47,7 +62,15 @@ This project is useful for practicing:
 - Event-driven UI programming with Tkinter
 - Saving and loading structured data with JSON
 - Separating UI setup, data management, game logic, and animation logic
+- Designing small reusable helpers for XP math, autocomplete, themes, and popup motion
+- Using canvas drawing for pixel art, avatar icons, progress rings, trophies, and particles
 - Iterating on design through small, visible improvements
+
+## Current Version
+
+```text
+1.01
+```
 
 ## Origin
 
