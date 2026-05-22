@@ -1466,10 +1466,10 @@ class LifeXPApp:
             font=("{San Francisco}", 12, "bold")
         ).grid(row=0, column=0, sticky="w")
 
-        difficulty_var = tk.IntVar(value=2)
+        difficulty_var = tk.IntVar(value=5)
         val_label = tk.Label(
             slider_header,
-            text="2 / 10",
+            text="5 / 10",
             bg=self.bg_light,
             fg=self.accent_green,
             font=("{San Francisco}", 12, "bold")
@@ -1483,7 +1483,7 @@ class LifeXPApp:
 
         xp_label = tk.Label(
             slider_card,
-            text="Yields 20 XP",
+            text="Yields 50 XP",
             bg=self.bg_light,
             fg=self.text_color,
             font=("{San Francisco}", 11)
