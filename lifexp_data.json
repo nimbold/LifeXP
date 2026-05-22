@@ -14,20 +14,56 @@
             "xp": 0
         },
         "Intelligence": {
-            "level": 1,
-            "xp": 0
+            "level": 3,
+            "xp": 75
         },
         "Charisma": {
             "level": 1,
             "xp": 0
         },
         "Constitution": {
-            "level": 1,
-            "xp": 0
+            "level": 2,
+            "xp": 100
         }
     },
     "tasks": [],
-    "history": [],
+    "history": [
+        {
+            "name": "Bug Fixing",
+            "attribute": "Intelligence",
+            "subcategory": "Bug Fixing",
+            "xp": 100,
+            "date": "2026-05-22T04:00:07.433146"
+        },
+        {
+            "name": "Breathing Exercise",
+            "attribute": "Constitution",
+            "subcategory": "Breathing Exercise",
+            "xp": 100,
+            "date": "2026-05-22T04:03:51.727553"
+        },
+        {
+            "name": "Breathing Exercise",
+            "attribute": "Constitution",
+            "subcategory": "Breathing Exercise",
+            "xp": 100,
+            "date": "2026-05-22T04:04:15.843072"
+        },
+        {
+            "name": "Bug Fixing",
+            "attribute": "Intelligence",
+            "subcategory": "Bug Fixing",
+            "xp": 100,
+            "date": "2026-05-22T04:04:19.277019"
+        },
+        {
+            "name": "Bug Fixing",
+            "attribute": "Intelligence",
+            "subcategory": "Bug Fixing",
+            "xp": 100,
+            "date": "2026-05-22T04:04:30.693398"
+        }
+    ],
     "trophies": [],
     "subcategories": {
         "Strength": [
