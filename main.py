@@ -52,7 +52,7 @@ class LifeXPApp:
 
         # These are the core game stats. Tasks give XP to one of these attributes,
         # and many later dictionaries use the same names as keys.
-        self.attributes = ["Strength", "Agility", "Intelligence", "Charisma", "Constitution"]
+        self.attributes = ["Strength", "Agility", "Intelligence", "Charisma", "Vitality"]
 
         # Keep track of persistence and account-level animation state. The JSON file
         # is the app's memory between runs.
@@ -121,7 +121,7 @@ class LifeXPApp:
                 "0111111110",
                 "0000000000"
             ],
-            "Constitution": [
+            "Vitality": [
                 "0000000000",
                 "0011001100",
                 "0111111110",
@@ -172,7 +172,7 @@ class LifeXPApp:
                     "Agility": "#FF9500",
                     "Intelligence": "#007AFF",
                     "Charisma": "#AF52DE",
-                    "Constitution": "#34C759"
+                    "Vitality": "#34C759"
                 }
             },
             "Apple Dark": {
@@ -187,7 +187,7 @@ class LifeXPApp:
                     "Agility": "#FF9F0A",
                     "Intelligence": "#0A84FF",
                     "Charisma": "#BF5AF2",
-                    "Constitution": "#30D158"
+                    "Vitality": "#30D158"
                 }
             },
             "Nord RPG": {
@@ -202,7 +202,7 @@ class LifeXPApp:
                     "Agility": "#D08770",
                     "Intelligence": "#88C0D0",
                     "Charisma": "#EBCB8B",
-                    "Constitution": "#A3BE8C"
+                    "Vitality": "#A3BE8C"
                 }
             },
             "Dracula": {
@@ -217,7 +217,7 @@ class LifeXPApp:
                     "Agility": "#FFB86C",
                     "Intelligence": "#8BE9FD",
                     "Charisma": "#FF79C6",
-                    "Constitution": "#50FA7B"
+                    "Vitality": "#50FA7B"
                 }
             },
             "Catppuccin Mocha": {
@@ -232,7 +232,7 @@ class LifeXPApp:
                     "Agility": "#FAB387",
                     "Intelligence": "#89B4FA",
                     "Charisma": "#F5C2E7",
-                    "Constitution": "#A6E3A1"
+                    "Vitality": "#A6E3A1"
                 }
             },
             "Gruvbox": {
@@ -247,7 +247,7 @@ class LifeXPApp:
                     "Agility": "#FE8019",
                     "Intelligence": "#83A598",
                     "Charisma": "#D3869B",
-                    "Constitution": "#B8BB26"
+                    "Vitality": "#B8BB26"
                 }
             },
             "Tokyo Night": {
@@ -262,7 +262,7 @@ class LifeXPApp:
                     "Agility": "#FF9E64",
                     "Intelligence": "#7AA2F7",
                     "Charisma": "#BB9AF7",
-                    "Constitution": "#9ECE6A"
+                    "Vitality": "#9ECE6A"
                 }
             },
             "Solarized Dark": {
@@ -277,7 +277,7 @@ class LifeXPApp:
                     "Agility": "#CB4B16",
                     "Intelligence": "#268BD2",
                     "Charisma": "#D33682",
-                    "Constitution": "#859900"
+                    "Vitality": "#859900"
                 }
             }
         }
@@ -339,6 +339,39 @@ class LifeXPApp:
         self.style.configure('Treeview', background=self.bg_light, foreground=self.text_color, fieldbackground=self.bg_light, borderwidth=0, rowheight=30, font=('{San Francisco}', 11))
         self.style.map('Treeview', background=[('selected', self.accent_green)], foreground=[('selected', self.bg_dark)])
         self.style.configure('Treeview.Heading', background=self.bg_dark, foreground=self.accent_green, font=('{San Francisco}', 11, 'bold'))
+
+    def fit_window_to_content(self, window, min_width=360, min_height=260, center=True):
+        """Sizes a Toplevel to its requested content while staying inside the screen."""
+        # Tkinter calculates a widget's "requested" size only after it has had a chance
+        # to lay out its children. update_idletasks() performs that layout work without
+        # starting the full event loop, so the width/height below are accurate.
+        window.update_idletasks()
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+
+        # The window should be at least big enough to be usable, but it should not grow
+        # beyond most of the screen. The 90% cap keeps large dialogs from opening under
+        # the menu bar or outside the monitor on smaller laptops.
+        width = min(max(window.winfo_reqwidth(), min_width), int(screen_width * 0.9))
+        height = min(max(window.winfo_reqheight(), min_height), int(screen_height * 0.9))
+        window.minsize(min(min_width, width), min(min_height, height))
+
+        if center:
+            # Centering is based on the main app window, not the whole screen. That
+            # keeps dialogs visually attached to LifeXP even when the app is moved.
+            parent = self.root
+            parent.update_idletasks()
+            parent_x = parent.winfo_rootx()
+            parent_y = parent.winfo_rooty()
+            parent_width = parent.winfo_width()
+            parent_height = parent.winfo_height()
+            x = parent_x + max(0, (parent_width - width) // 2)
+            y = parent_y + max(0, (parent_height - height) // 2)
+            x = min(max(0, x), max(0, screen_width - width))
+            y = min(max(0, y), max(0, screen_height - height))
+            window.geometry(f"{width}x{height}+{x}+{y}")
+        else:
+            window.geometry(f"{width}x{height}")
 
     def setup_header(self):
         """Builds the User Account bar at the top right of the application."""
@@ -803,8 +836,6 @@ class LifeXPApp:
         # tk.Toplevel creates a new floating window on top of the main root window.
         self.settings_window = tk.Toplevel(self.root)
         self.settings_window.title("Settings")
-        self.settings_window.geometry("560x450")
-        self.settings_window.minsize(520, 450)
         self.settings_window.configure(bg=self.bg_dark)
         self.settings_window.transient(self.root)
 
@@ -914,6 +945,8 @@ class LifeXPApp:
             wraplength=490,
             justify=tk.LEFT
         ).pack(anchor=tk.W, fill=tk.X, padx=12, pady=12)
+
+        self.fit_window_to_content(self.settings_window, min_width=560, min_height=450)
 
     def set_theme(self, theme_name, save=True):
         """Applies a selected theme immediately and optionally saves it."""
@@ -1062,7 +1095,7 @@ class LifeXPApp:
                     "Conflict Resolution",
                     "Thank You Note"
                 ],
-                "Constitution": [
+                "Vitality": [
                     "Cooking Lunch",
                     "Healthy Breakfast",
                     "Meal Prep",
@@ -1092,7 +1125,12 @@ class LifeXPApp:
 
                     # Migration code lets old save files survive renamed attributes. The map says
                     # which old names should become which new names.
-                    rename_map = {"Dexterity": "Agility", "Faith": "Charisma", "Vigor": "Constitution"}
+                    rename_map = {
+                        "Dexterity": "Agility",
+                        "Faith": "Charisma",
+                        "Vigor": "Vitality",
+                        "Constitution": "Vitality"
+                    }
 
                     # The next three blocks apply the rename map to stats, active tasks, and history.
                     # Each block checks that the section exists before touching it.
@@ -1110,6 +1148,28 @@ class LifeXPApp:
                         for record in data["history"]:
                             if record.get("attribute") in rename_map:
                                 record["attribute"] = rename_map[record["attribute"]]
+
+                    # Subcategories are stored under attribute names too. When an
+                    # attribute is renamed, we move its activity suggestions to the new
+                    # name and avoid adding duplicates if both old and new keys exist.
+                    if "subcategories" in data:
+                        for old, new in rename_map.items():
+                            if old in data["subcategories"]:
+                                old_subs = data["subcategories"].pop(old)
+                                data["subcategories"].setdefault(new, [])
+                                for sub in old_subs:
+                                    if sub not in data["subcategories"][new]:
+                                        data["subcategories"][new].append(sub)
+
+                    # Trophy names are plain strings like "Vitality Bronze", not nested
+                    # dictionaries. That means migration needs to rewrite the text prefix
+                    # so old trophies still appear as unlocked after the rename.
+                    if "trophies" in data:
+                        for index, trophy_name in enumerate(data["trophies"]):
+                            for old, new in rename_map.items():
+                                if trophy_name.startswith(f"{old} "):
+                                    data["trophies"][index] = trophy_name.replace(old, new, 1)
+                                    break
 
                     if "user_info" in data and data["user_info"].get("name") == "Ashen One":
                         data["user_info"]["name"] = "Hero"
@@ -1186,38 +1246,154 @@ class LifeXPApp:
         # A Toplevel creates a second window for adding a quest. grab_set() makes it
         # modal, meaning the user should finish this dialog before returning to the app.
         dialog = tk.Toplevel(self.root)
-        dialog.title("Add New Quest")
-        dialog.geometry("350x500")
+        dialog.title("Accept Quest")
         dialog.configure(bg=self.bg_dark)
         dialog.transient(self.root)
         dialog.grab_set()
 
-        # The first input chooses which RPG attribute the new quest will reward. A
-        # readonly Combobox limits the choice to known attributes.
-        ttk.Label(dialog, text="Target Attribute:", font=("{San Francisco}", 11, "bold")).pack(pady=(15, 5))
+        surface = tk.Frame(dialog, bg=self.bg_dark)
+        surface.pack(fill=tk.BOTH, expand=True, padx=24, pady=22)
+
+        header = tk.Frame(surface, bg=self.bg_dark)
+        header.pack(fill=tk.X)
+        tk.Label(
+            header,
+            text="Accept Quest",
+            bg=self.bg_dark,
+            fg=self.text_color,
+            font=("{San Francisco}", 22, "bold")
+        ).pack(anchor=tk.W)
+        tk.Label(
+            header,
+            text="Choose an attribute, find or type an activity, then set its XP.",
+            bg=self.bg_dark,
+            fg=self.accent_green,
+            font=("{San Francisco}", 11)
+        ).pack(anchor=tk.W, pady=(4, 0))
+
+        # Attribute chips keep quest categories visible without forcing an extra field.
         attr_var = tk.StringVar(value=self.attributes[0])
-        attr_dropdown = ttk.Combobox(dialog, textvariable=attr_var, values=self.attributes, state="readonly", font=("{San Francisco}", 11))
-        attr_dropdown.pack(padx=20, fill=tk.X)
+        category_section = tk.Frame(surface, bg=self.bg_dark)
+        category_section.pack(fill=tk.X, pady=(22, 0))
+        tk.Label(
+            category_section,
+            text="Target Attribute",
+            bg=self.bg_dark,
+            fg=self.text_color,
+            font=("{San Francisco}", 11, "bold")
+        ).pack(anchor=tk.W)
 
-        # The activity name is free text, but the listbox below will suggest previous
-        # or default subcategories as the user types.
-        ttk.Label(dialog, text="Activity / Quest Name:", font=("{San Francisco}", 11, "bold")).pack(pady=(15, 5))
+        chip_row = tk.Frame(category_section, bg=self.bg_dark)
+        chip_row.pack(fill=tk.X, pady=(8, 8))
+        chip_widgets = {}
+
+        def refresh_category_chips():
+            # The selected chip gets the attribute color. The others stay neutral so the
+            # user can quickly tell which attribute a new custom activity will use.
+            for attr, chip in chip_widgets.items():
+                selected = attr_var.get() == attr
+                chip.config(
+                    bg=self.attr_colors[attr] if selected else self.bg_light,
+                    fg=self.card_text_color if selected else self.text_color,
+                    relief=tk.FLAT if selected else tk.GROOVE,
+                    bd=0 if selected else 1
+                )
+
+        def choose_attribute(attr):
+            attr_var.set(attr)
+            refresh_category_chips()
+            update_suggestions()
+
+        for index, attr in enumerate(self.attributes):
+            chip = tk.Label(
+                chip_row,
+                text=attr,
+                bg=self.bg_light,
+                fg=self.text_color,
+                padx=12,
+                pady=7,
+                cursor="hand2",
+                font=("{San Francisco}", 10, "bold")
+            )
+            # grid() makes the chips wrap into rows. This prevents long names like
+            # "Intelligence" or "Vitality" from disappearing off the right edge.
+            chip.grid(row=index // 3, column=index % 3, sticky="ew", padx=(0, 8), pady=(0, 8))
+            chip.bind("<Button-1>", lambda event, selected_attr=attr: choose_attribute(selected_attr))
+            chip_widgets[attr] = chip
+
+        # Equal column weights make the chip grid feel intentional instead of letting
+        # each label pick a different width based only on its text length.
+        for column in range(3):
+            chip_row.grid_columnconfigure(column, weight=1, uniform="attribute_chips")
+
+        search_section = tk.Frame(surface, bg=self.bg_dark)
+        search_section.pack(fill=tk.BOTH, expand=True, pady=(18, 0))
+        tk.Label(
+            search_section,
+            text="Activity",
+            bg=self.bg_dark,
+            fg=self.text_color,
+            font=("{San Francisco}", 11, "bold")
+        ).pack(anchor=tk.W)
+        tk.Label(
+            search_section,
+            text="Tip: You can type an activity directly; saved activities choose their matching attribute automatically.",
+            bg=self.bg_dark,
+            fg=self.accent_green,
+            font=("{San Francisco}", 10),
+            justify=tk.LEFT,
+            wraplength=500
+        ).pack(anchor=tk.W, fill=tk.X, pady=(4, 0))
         activity_var = tk.StringVar()
-        activity_entry = ttk.Entry(dialog, textvariable=activity_var, font=("{San Francisco}", 11))
-        activity_entry.pack(padx=20, fill=tk.X)
+        activity_entry = ttk.Entry(search_section, textvariable=activity_var, font=("{San Francisco}", 12))
+        activity_entry.pack(fill=tk.X, pady=(8, 0), ipady=6)
 
-        listbox_frame = ttk.Frame(dialog, height=100)
+        hint_label = tk.Label(
+            search_section,
+            text="Suggestions update as you type.",
+            bg=self.bg_dark,
+            fg=self.accent_green,
+            font=("{San Francisco}", 10)
+        )
+        hint_label.pack(anchor=tk.W, pady=(6, 0))
+
+        listbox_frame = tk.Frame(search_section, bg=self.bg_light, height=170)
         listbox_frame.pack_propagate(False)
-        listbox_frame.pack(padx=20, pady=5, fill=tk.X)
+        listbox_frame.pack(pady=(10, 0), fill=tk.BOTH, expand=True)
 
-        suggestion_list = tk.Listbox(listbox_frame, font=("{San Francisco}", 11), bg=self.bg_light, fg=self.text_color, selectbackground=self.accent_green, bd=0, highlightthickness=0)
+        suggestion_scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL)
+        suggestion_list = tk.Listbox(
+            listbox_frame,
+            font=("{San Francisco}", 11),
+            bg=self.bg_light,
+            fg=self.text_color,
+            selectbackground=self.accent_green,
+            selectforeground=self.bg_dark,
+            activestyle="none",
+            bd=0,
+            highlightthickness=0,
+            yscrollcommand=suggestion_scrollbar.set
+        )
+        suggestion_scrollbar.config(command=suggestion_list.yview)
+        suggestion_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2, pady=2)
+        suggestion_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # Nested helper functions are useful when logic belongs only inside one dialog.
         # This one rebuilds autocomplete suggestions whenever the text changes.
         def update_suggestions(*args):
             typed = activity_var.get().lower()
-
-            all_subs = self.get_all_subcategories()
+            selected_attr = attr_var.get()
+            selected_subs = self.data["subcategories"].get(selected_attr, [])
+            # Suggestions from the selected attribute are listed first. Suggestions from
+            # other attributes are still searchable so typing "Meditation" can switch
+            # the quest to Vitality automatically.
+            other_subs = [
+                sub
+                for attr, subs in self.data["subcategories"].items()
+                if attr != selected_attr
+                for sub in subs
+            ]
+            all_subs = dict.fromkeys(selected_subs + sorted(other_subs))
 
             suggestion_list.delete(0, tk.END)
 
@@ -1225,81 +1401,186 @@ class LifeXPApp:
             # Partial matches stay visible so the user can click one.
             exact_matches = [sub for sub in all_subs if sub.lower() == typed]
             if exact_matches:
-                suggestion_list.pack_forget()
-
                 for attr, subs in self.data["subcategories"].items():
                     if exact_matches[0] in subs and attr_var.get() != attr:
                         attr_var.set(attr)
+                        refresh_category_chips()
                         break
+                suggestion_list.insert(tk.END, f"• {exact_matches[0]}")
+                hint_label.config(text="Exact match found.")
                 return
 
             hits = all_subs if not typed else [sub for sub in all_subs if typed in sub.lower()]
 
             if hits:
-                suggestion_list.pack(fill=tk.BOTH, expand=True)
-                for hit in hits:
-                    suggestion_list.insert(tk.END, hit)
+                for hit in list(hits)[:80]:
+                    # A dot means the suggestion belongs to the currently selected
+                    # attribute. A chevron means choosing it will switch attributes.
+                    owning_attr = next(
+                        (attr for attr, subs in self.data["subcategories"].items() if hit in subs),
+                        selected_attr
+                    )
+                    prefix = "•" if owning_attr == selected_attr else "›"
+                    suggestion_list.insert(tk.END, f"{prefix} {hit}")
+                hint_label.config(text=f"{len(hits)} matching activities")
             else:
-                suggestion_list.pack_forget()
+                hint_label.config(text="No saved activity yet. This will become a new suggestion.")
 
         # When the user clicks a suggestion, this handler copies the text into the entry
-        # and switches the attribute dropdown to the suggestion's saved category.
-        def on_suggestion_select(event):
+        # and switches the selected attribute chip to the suggestion's saved category.
+        def on_suggestion_select(event=None):
             if suggestion_list.curselection():
                 index = suggestion_list.curselection()[0]
-                selected_text = suggestion_list.get(index)
+                selected_text = suggestion_list.get(index)[2:]
 
                 for attr, subs in self.data["subcategories"].items():
                     if selected_text in subs:
                         attr_var.set(attr)
+                        refresh_category_chips()
                         break
 
                 activity_var.set(selected_text)
+                activity_entry.icursor(tk.END)
 
         # trace_add connects variable changes to code. bind connects listbox selection
         # events to code. Together they make the autocomplete interactive.
         activity_var.trace_add("write", update_suggestions)
         suggestion_list.bind("<<ListboxSelect>>", on_suggestion_select)
-        update_suggestions()
+        suggestion_list.bind("<Double-Button-1>", on_suggestion_select)
 
-        tk.Frame(dialog, bg=self.text_color, height=1).pack(fill=tk.X, padx=20, pady=(20, 15))
+        divider = tk.Frame(surface, bg=self.bg_light, height=1)
+        divider.pack(fill=tk.X, pady=(18, 16))
 
-        slider_frame = ttk.Frame(dialog)
-        slider_frame.pack(fill=tk.X, padx=20)
+        slider_card = tk.Frame(surface, bg=self.bg_light)
+        slider_card.pack(fill=tk.X)
+        slider_card.grid_columnconfigure(0, weight=1)
+
+        slider_header = tk.Frame(slider_card, bg=self.bg_light)
+        slider_header.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 6))
+        slider_header.grid_columnconfigure(0, weight=1)
+        tk.Label(
+            slider_header,
+            text="Difficulty",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 12, "bold")
+        ).grid(row=0, column=0, sticky="w")
+
+        difficulty_var = tk.IntVar(value=2)
+        val_label = tk.Label(
+            slider_header,
+            text="2 / 10",
+            bg=self.bg_light,
+            fg=self.accent_green,
+            font=("{San Francisco}", 12, "bold")
+        )
+        val_label.grid(row=0, column=1, sticky="e")
 
         # The difficulty slider stores a simple 1-10 value. The app multiplies it by 10
         # to turn difficulty into an XP reward.
-        xp_slider = tk.Scale(slider_frame, from_=1, to=10, orient=tk.HORIZONTAL, showvalue=0, bg=self.bg_dark, highlightthickness=0)
-        xp_slider.set(2)
-        xp_slider.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        slider_canvas = tk.Canvas(slider_card, height=58, bg=self.bg_light, highlightthickness=0)
+        slider_canvas.grid(row=1, column=0, sticky="ew", padx=16)
 
-        val_label = ttk.Label(slider_frame, text="Difficulty: 2  (Yields 20 XP)", font=("{San Francisco}", 11))
-        val_label.pack(side=tk.RIGHT)
+        xp_label = tk.Label(
+            slider_card,
+            text="Yields 20 XP",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 11)
+        )
+        xp_label.grid(row=2, column=0, sticky="w", padx=16, pady=(0, 14))
 
         # This helper updates the difficulty label and color as the slider moves. The
         # RGB math blends from light to the accent green.
-        def update_slider_visuals(val):
-            v = int(float(val))
-            val_label.config(text=f"Difficulty: {v}  (Yields {v * 10} XP)")
-
+        def difficulty_color(v):
+            # Difficulty 1 starts almost white, while difficulty 10 lands on the theme's
+            # green-ish reward color. The intermediate values are simple RGB blends.
             ratio = (v - 1) / 9.0
-
             r = int(255 + (163 - 255) * ratio)
             g = int(255 + (190 - 255) * ratio)
             b = int(255 + (140 - 255) * ratio)
-            color_hex = f'#{r:02x}{g:02x}{b:02x}'
+            return f'#{r:02x}{g:02x}{b:02x}'
 
-            xp_slider.config(troughcolor=color_hex)
+        def draw_difficulty_slider():
+            # The slider is drawn on a Canvas because Tk's built-in Scale widget is hard
+            # to style nicely. Redrawing from scratch is cheap here because the canvas
+            # only contains a track, ten ticks, two labels, and one thumb.
+            slider_canvas.delete("all")
+            width = max(slider_canvas.winfo_width(), 320)
+            left = 18
+            right = width - 18
+            center_y = 22
+            track_height = 8
+            value = difficulty_var.get()
+            ratio = (value - 1) / 9.0
+            thumb_x = left + (right - left) * ratio
+            color_hex = difficulty_color(value)
 
-        xp_slider.config(command=update_slider_visuals)
-        update_slider_visuals(2)
+            slider_canvas.create_line(
+                left,
+                center_y,
+                right,
+                center_y,
+                fill=self.bg_dark,
+                width=track_height,
+                capstyle=tk.ROUND
+            )
+            slider_canvas.create_line(
+                left,
+                center_y,
+                thumb_x,
+                center_y,
+                fill=color_hex,
+                width=track_height,
+                capstyle=tk.ROUND
+            )
+
+            for tick in range(1, 11):
+                tick_ratio = (tick - 1) / 9.0
+                tick_x = left + (right - left) * tick_ratio
+                slider_canvas.create_oval(
+                    tick_x - 2,
+                    center_y - 2,
+                    tick_x + 2,
+                    center_y + 2,
+                    fill=self.text_color if tick > value else self.bg_dark,
+                    outline=""
+                )
+
+            slider_canvas.create_oval(
+                thumb_x - 12,
+                center_y - 12,
+                thumb_x + 12,
+                center_y + 12,
+                fill="#FFFFFF",
+                outline=color_hex,
+                width=3
+            )
+            slider_canvas.create_text(left, 46, text="1", fill=self.text_color, font=("{San Francisco}", 9))
+            slider_canvas.create_text(right, 46, text="10", fill=self.text_color, font=("{San Francisco}", 9))
+            val_label.config(text=f"{value} / 10", fg=color_hex)
+            xp_label.config(text=f"Yields {value * 10} XP")
+
+        def set_difficulty_from_event(event):
+            # Mouse x-position becomes a 0..1 ratio along the track, then that ratio is
+            # converted to one of the ten whole-number difficulty values.
+            width = max(slider_canvas.winfo_width(), 320)
+            left = 18
+            right = width - 18
+            ratio = min(1.0, max(0.0, (event.x - left) / (right - left)))
+            difficulty_var.set(round(1 + ratio * 9))
+            draw_difficulty_slider()
+
+        slider_canvas.bind("<Configure>", lambda event: draw_difficulty_slider())
+        slider_canvas.bind("<Button-1>", set_difficulty_from_event)
+        slider_canvas.bind("<B1-Motion>", set_difficulty_from_event)
 
         # The save helper validates the dialog, remembers new activity names for future
         # autocomplete, appends the task, saves data, refreshes the table, and closes.
         def save():
             activity_name = activity_var.get().strip()
             attr = attr_var.get()
-            xp = xp_slider.get() * 10
+            xp = difficulty_var.get() * 10
 
             if not activity_name:
                 messagebox.showerror("Hold up, Hero!", "Your quest needs an activity name.", parent=dialog)
@@ -1324,7 +1605,18 @@ class LifeXPApp:
             cx, cy = self.get_center()
             self.play_floating_text("✨ QUEST ADDED", self.accent_green, cx, cy)
 
-        ttk.Button(dialog, text="Accept Quest", command=save).pack(pady=20)
+        action_row = tk.Frame(surface, bg=self.bg_dark)
+        action_row.pack(fill=tk.X, pady=(18, 0))
+        ttk.Button(action_row, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT)
+        ttk.Button(action_row, text="Accept Quest", style="QuestAccept.TButton", command=save).pack(side=tk.RIGHT)
+
+        refresh_category_chips()
+        update_suggestions()
+        draw_difficulty_slider()
+        self.fit_window_to_content(dialog, min_width=560, min_height=660)
+        activity_entry.focus_set()
+        dialog.bind("<Return>", lambda event: save())
+        dialog.bind("<Escape>", lambda event: dialog.destroy())
 
     def edit_task_dialog(self):
         """Allows editing a currently selected task."""

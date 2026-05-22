@@ -21,7 +21,7 @@
             "level": 1,
             "xp": 0
         },
-        "Constitution": {
+        "Vitality": {
             "level": 1,
             "xp": 0
         }
@@ -84,7 +84,7 @@
             "Conflict Resolution",
             "Thank You Note"
         ],
-        "Constitution": [
+        "Vitality": [
             "Cooking Lunch",
             "Healthy Breakfast",
             "Meal Prep",

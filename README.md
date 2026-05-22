@@ -9,7 +9,7 @@ This is also a first-project learning course. The code is intentionally commente
 - Quest Log for accepting, completing, editing, and abandoning quests.
 - Autocomplete activity names built from default and previously used subcategories.
 - Difficulty slider that converts everyday task difficulty into XP rewards.
-- Five RPG attributes: Strength, Agility, Intelligence, Charisma, and Constitution.
+- Five RPG attributes: Strength, Agility, Intelligence, Charisma, and Vitality.
 - Attribute levels, total account level, rank titles, roman numerals, and avatar progress ring.
 - Visual Trophy Room with pixel trophies for milestone levels.
 - Chronicles page with daily, weekly, and monthly activity reports.
