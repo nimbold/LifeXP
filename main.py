@@ -15,7 +15,12 @@ import json
 import os
 import random
 
+# APP_VERSION is shown in Settings. The XP constants collect progression tuning knobs
+# so later balancing changes do not require hunting through raw numbers.
 APP_VERSION = "1.01"
+BASE_XP_NEEDED = 100
+XP_GROWTH_RATE = 1.25
+ACCOUNT_XP_PER_LEVEL = 500
 
 # ==============================================================================
 # MAIN APP CLASS
@@ -439,18 +444,12 @@ class LifeXPApp:
         """Calculates total global XP and Level and updates the UI."""
         # Total account XP is reconstructed from every attribute. Stored XP only keeps
         # the current level's remainder, so previous level costs are added back in.
-        total_xp = 0
+        total_xp = sum(self.get_total_xp_for_stat(stat) for stat in self.data["stats"].values())
 
-        for stat in self.data["stats"].values():
-            stat_total_xp = stat["xp"]
-            for l in range(1, stat["level"]):
-                stat_total_xp += self.get_xp_needed(l)
-            total_xp += stat_total_xp
-
-        # The global account level is simpler than attribute levels: every 500 total XP
-        # adds one account level, and the remainder becomes ring progress.
-        total_level = (total_xp // 500) + 1
-        progress = (total_xp % 500) / 500.0
+        # The global account level is simpler than attribute levels: every fixed chunk
+        # of total XP adds one account level, and the remainder becomes ring progress.
+        total_level = (total_xp // ACCOUNT_XP_PER_LEVEL) + 1
+        progress = (total_xp % ACCOUNT_XP_PER_LEVEL) / float(ACCOUNT_XP_PER_LEVEL)
 
         # Once the total level is known, the header labels and avatar can be updated
         # with the matching title, color, and icon.
@@ -1046,7 +1045,7 @@ class LifeXPApp:
             try:
                 # with open(...) safely opens the file and closes it automatically. json.load()
                 # turns the file text back into Python dictionaries and lists.
-                with open(self.data_file, 'r') as f:
+                with open(self.data_file, 'r', encoding="utf-8") as f:
                     data = json.load(f)
 
                     # Migration code lets old save files survive renamed attributes. The map says
@@ -1071,7 +1070,7 @@ class LifeXPApp:
                                 record["attribute"] = rename_map[record["attribute"]]
 
                     if "user_info" in data and data["user_info"].get("name") == "Ashen One":
-                         data["user_info"]["name"] = "Hero"
+                        data["user_info"]["name"] = "Hero"
 
                     # This loop patches missing top-level sections into older or partial save files.
                     # It prevents simple KeyError crashes later in the UI.
@@ -1110,10 +1109,10 @@ class LifeXPApp:
 
                     return data
 
-            # If the JSON file is damaged or unreadable, the app does not crash. It prints
-            # a warning and falls back to a clean default save structure.
-            except json.JSONDecodeError:
-                print("Error reading data file. Starting fresh.")
+            # If the JSON file is damaged or unreadable, the app does not crash. It
+            # prints a warning and falls back to a clean default save structure.
+            except (OSError, json.JSONDecodeError) as error:
+                print(f"Error reading data file. Starting fresh. ({error})")
                 return default_data
 
         return default_data
@@ -1122,7 +1121,7 @@ class LifeXPApp:
         """Writes current data back to the hard drive."""
         # Saving is the reverse of loading: json.dump() converts the in-memory app data
         # into readable text and writes it to disk.
-        with open(self.data_file, 'w') as f:
+        with open(self.data_file, 'w', encoding="utf-8") as f:
             json.dump(self.data, f, indent=4)
 
     # ==============================================================================
@@ -1176,12 +1175,7 @@ class LifeXPApp:
         def update_suggestions(*args):
             typed = activity_var.get().lower()
 
-            all_subs = []
-            for subs in self.data["subcategories"].values():
-                for sub in subs:
-                    if sub not in all_subs:
-                        all_subs.append(sub)
-            all_subs.sort()
+            all_subs = self.get_all_subcategories()
 
             suggestion_list.delete(0, tk.END)
 
@@ -1305,15 +1299,17 @@ class LifeXPApp:
         # Editing uses simple popup dialogs instead of a custom window. The current task
         # values are passed in as initial values for the user to modify.
         new_name = simpledialog.askstring("Edit Quest", "New Quest Name:", initialvalue=task["name"])
-        if new_name is None: return
+        if new_name is None:
+            return
 
         try:
-             new_xp_str = simpledialog.askstring("Edit Quest", "New XP Reward:", initialvalue=str(task["xp"]))
-             if new_xp_str is None: return
-             new_xp = int(new_xp_str)
+            new_xp_str = simpledialog.askstring("Edit Quest", "New XP Reward:", initialvalue=str(task["xp"]))
+            if new_xp_str is None:
+                return
+            new_xp = int(new_xp_str)
         except ValueError:
-             messagebox.showerror("Error", "XP must be a numeric value.")
-             return
+            messagebox.showerror("Error", "XP must be a numeric value.")
+            return
 
         if new_name.strip():
             self.data["tasks"][index]["name"] = new_name
@@ -1387,7 +1383,25 @@ class LifeXPApp:
         """Returns the XP required to pass the given level. Increases by 25% each level."""
         # Attribute XP requirements grow by 25 percent per level. int() rounds the
         # calculated requirement down to a whole number.
-        return int(100 * (1.25 ** (level - 1)))
+        return int(BASE_XP_NEEDED * (XP_GROWTH_RATE ** (level - 1)))
+
+    def get_total_xp_for_stat(self, stat):
+        """Returns lifetime XP for one attribute, including already-spent level XP."""
+        # Saved stats only keep the XP inside the current level. This helper adds the
+        # XP paid for previous levels so account rank can use true lifetime progress.
+        previous_level_xp = sum(self.get_xp_needed(level) for level in range(1, stat["level"]))
+        return stat["xp"] + previous_level_xp
+
+    def get_all_subcategories(self):
+        """Returns every known activity name once, sorted for autocomplete."""
+        # dict.fromkeys keeps the first copy of each activity while removing duplicates.
+        # Sorting afterward gives the suggestion list a stable, predictable order.
+        all_subs = dict.fromkeys(
+            sub
+            for subs in self.data["subcategories"].values()
+            for sub in subs
+        )
+        return sorted(all_subs)
 
     def gain_xp(self, attribute, amount):
         """Calculates new XP and returns any level-up moments to animate later."""
@@ -1397,8 +1411,9 @@ class LifeXPApp:
         stat["xp"] += amount
         level_events = []
 
-        while stat["xp"] >= self.get_xp_needed(stat["level"]):
-            stat["xp"] -= self.get_xp_needed(stat["level"])
+        xp_needed = self.get_xp_needed(stat["level"])
+        while stat["xp"] >= xp_needed:
+            stat["xp"] -= xp_needed
             stat["level"] += 1
 
             # Each level-up checks whether a milestone trophy was reached. Animation is
@@ -1409,6 +1424,7 @@ class LifeXPApp:
                 "level": stat["level"],
                 "trophy": trophy_name
             })
+            xp_needed = self.get_xp_needed(stat["level"])
 
         return level_events
 
@@ -1440,8 +1456,7 @@ class LifeXPApp:
         rows = len(shape_grid)
         cols = len(shape_grid[0])
 
-        pixel_size = (c_width - 10) // max(rows, cols)
-        if pixel_size < 1: pixel_size = 1
+        pixel_size = max(1, (c_width - 10) // max(rows, cols))
 
         offset_x = (c_width - (cols * pixel_size)) // 2
         offset_y = (c_height - (rows * pixel_size)) // 2
