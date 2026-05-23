@@ -57,7 +57,10 @@ class LifeXPApp:
 
         # Keep track of persistence and account-level animation state. The JSON file
         # is the app's memory between runs.
-        self.data_file = "lifexp_data.json"
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.data_file = os.path.join(self.base_dir, "lifexp_data.json")
+        self.xp_needed_cache = {}
+        self.total_xp_before_level_cache = {1: 0}
         self.current_total_level = 0
         self.themes = self.get_theme_definitions()
         self.current_theme_name = "Nord RPG"
@@ -1332,6 +1335,8 @@ class LifeXPApp:
                 # turns the file text back into Python dictionaries and lists.
                 with open(self.data_file, 'r', encoding="utf-8") as f:
                     data = json.load(f)
+                    if not isinstance(data, dict):
+                        return default_data
 
                     # Migration code lets old save files survive renamed attributes. The map says
                     # which old names should become which new names.
@@ -1344,28 +1349,37 @@ class LifeXPApp:
 
                     # The next three blocks apply the rename map to stats, active tasks, and history.
                     # Each block checks that the section exists before touching it.
-                    if "stats" in data:
+                    if isinstance(data.get("stats"), dict):
                         for old, new in rename_map.items():
                             if old in data["stats"]:
                                 data["stats"][new] = data["stats"].pop(old)
 
-                    if "tasks" in data:
+                    if isinstance(data.get("tasks"), list):
                         for task in data["tasks"]:
+                            if not isinstance(task, dict):
+                                continue
                             if task.get("attribute") in rename_map:
                                 task["attribute"] = rename_map[task["attribute"]]
 
-                    if "history" in data:
+                    if isinstance(data.get("history"), list):
                         for record in data["history"]:
+                            if not isinstance(record, dict):
+                                continue
                             if record.get("attribute") in rename_map:
                                 record["attribute"] = rename_map[record["attribute"]]
 
                     # Subcategories are stored under attribute names too. When an
                     # attribute is renamed, we move its activity suggestions to the new
                     # name and avoid adding duplicates if both old and new keys exist.
+                    if not isinstance(data.get("subcategories"), dict):
+                        data["subcategories"] = default_data["subcategories"]
+
                     if "subcategories" in data:
                         for old, new in rename_map.items():
                             if old in data["subcategories"]:
                                 old_subs = data["subcategories"].pop(old)
+                                if not isinstance(old_subs, list):
+                                    continue
                                 data["subcategories"].setdefault(new, [])
                                 for sub in old_subs:
                                     if sub not in data["subcategories"][new]:
@@ -1374,14 +1388,16 @@ class LifeXPApp:
                     # Trophy names are plain strings like "Vitality Bronze", not nested
                     # dictionaries. That means migration needs to rewrite the text prefix
                     # so old trophies still appear as unlocked after the rename.
-                    if "trophies" in data:
+                    if isinstance(data.get("trophies"), list):
                         for index, trophy_name in enumerate(data["trophies"]):
+                            if not isinstance(trophy_name, str):
+                                continue
                             for old, new in rename_map.items():
                                 if trophy_name.startswith(f"{old} "):
                                     data["trophies"][index] = trophy_name.replace(old, new, 1)
                                     break
 
-                    if "user_info" in data and data["user_info"].get("name") == "Ashen One":
+                    if isinstance(data.get("user_info"), dict) and data["user_info"].get("name") == "Ashen One":
                         data["user_info"]["name"] = "Hero"
 
                     # This loop patches missing top-level sections into older or partial save files.
@@ -1389,6 +1405,14 @@ class LifeXPApp:
                     for key in default_data:
                         if key not in data:
                             data[key] = default_data[key]
+
+                    data["stats"] = self.normalize_stats(data.get("stats"), default_data["stats"])
+                    data["tasks"] = self.normalize_tasks(data.get("tasks"))
+                    data["history"] = self.normalize_history(data.get("history"))
+                    data["trophies"] = [
+                        trophy for trophy in data.get("trophies", [])
+                        if isinstance(trophy, str)
+                    ] if isinstance(data.get("trophies"), list) else []
 
                     # Subcategories power the task-name autocomplete. This block removes old
                     # narrow suggestions and injects the broader daily-life catalogue.
@@ -1401,9 +1425,11 @@ class LifeXPApp:
                             "Workout"
                         ]
                         for attr in data["subcategories"]:
+                            if not isinstance(data["subcategories"][attr], list):
+                                data["subcategories"][attr] = []
                             data["subcategories"][attr] = [
-                                sub for sub in data["subcategories"][attr]
-                                if sub not in retired_subcategories
+                                str(sub).strip() for sub in data["subcategories"][attr]
+                                if isinstance(sub, str) and sub.strip() and sub not in retired_subcategories
                             ]
 
                         for attr, new_subs in default_data["subcategories"].items():
@@ -1414,7 +1440,7 @@ class LifeXPApp:
                                     if sub not in data["subcategories"][attr]:
                                         data["subcategories"][attr].append(sub)
 
-                    if "user_info" not in data:
+                    if not isinstance(data.get("user_info"), dict):
                         data["user_info"] = default_data["user_info"]
                     else:
                         data["user_info"].setdefault("theme", self.current_theme_name)
@@ -1429,12 +1455,82 @@ class LifeXPApp:
 
         return default_data
 
+    def normalize_stats(self, stats, default_stats):
+        """Returns valid stats for every current attribute."""
+        normalized = {}
+        stats = stats if isinstance(stats, dict) else {}
+        for attr in self.attributes:
+            raw_stat = stats.get(attr, {}) if isinstance(stats.get(attr, {}), dict) else {}
+            try:
+                level = max(1, int(raw_stat.get("level", default_stats[attr]["level"])))
+                xp = max(0, int(raw_stat.get("xp", default_stats[attr]["xp"])))
+            except (TypeError, ValueError):
+                level = default_stats[attr]["level"]
+                xp = default_stats[attr]["xp"]
+            normalized[attr] = {"level": level, "xp": xp}
+        return normalized
+
+    def normalize_tasks(self, tasks):
+        """Drops malformed active quests that would crash task actions."""
+        normalized = []
+        if not isinstance(tasks, list):
+            return normalized
+
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            name = str(task.get("name", "")).strip()
+            attr = task.get("attribute")
+            if not name or attr not in self.attributes:
+                continue
+            try:
+                xp = max(1, int(task.get("xp", 0)))
+            except (TypeError, ValueError):
+                continue
+            normalized.append({
+                "name": name,
+                "attribute": attr,
+                "subcategory": str(task.get("subcategory") or name).strip() or name,
+                "xp": xp
+            })
+        return normalized
+
+    def normalize_history(self, history):
+        """Keeps only usable completion records for reports."""
+        normalized = []
+        if not isinstance(history, list):
+            return normalized
+
+        for record in history:
+            if not isinstance(record, dict):
+                continue
+            attr = record.get("attribute")
+            if attr not in self.attributes:
+                continue
+            date_value = record.get("date")
+            try:
+                datetime.fromisoformat(date_value)
+                xp = max(0, int(record.get("xp", 0)))
+            except (TypeError, ValueError):
+                continue
+            name = str(record.get("name") or record.get("subcategory") or "General").strip() or "General"
+            normalized.append({
+                "name": name,
+                "attribute": attr,
+                "subcategory": str(record.get("subcategory") or name).strip() or name,
+                "xp": xp,
+                "date": date_value
+            })
+        return normalized
+
     def save_data(self):
         """Writes current data back to the hard drive."""
         # Saving is the reverse of loading: json.dump() converts the in-memory app data
         # into readable text and writes it to disk.
-        with open(self.data_file, 'w', encoding="utf-8") as f:
+        temp_file = f"{self.data_file}.tmp"
+        with open(temp_file, 'w', encoding="utf-8") as f:
             json.dump(self.data, f, indent=4)
+        os.replace(temp_file, self.data_file)
 
     # ==============================================================================
     # GROUP C - GAME ENGINE / LOGIC AND ACTIONS
@@ -1856,15 +1952,25 @@ class LifeXPApp:
             messagebox.showerror("Error", "XP must be a numeric value.")
             return
 
-        if new_name.strip():
-            self.data["tasks"][index]["name"] = new_name
-            self.data["tasks"][index]["subcategory"] = new_name
-            self.data["tasks"][index]["xp"] = new_xp
-            self.save_data()
-            self.refresh_task_list()
+        if new_xp < 1:
+            messagebox.showerror("Error", "XP must be at least 1.")
+            return
 
-            cx, cy = self.get_center()
-            self.play_floating_text("✏️ QUEST UPDATED", "#88C0D0", cx, cy)
+        new_name = new_name.strip()
+        if not new_name:
+            messagebox.showerror("Error", "Quest name cannot be blank.")
+            return
+
+        self.data["tasks"][index]["name"] = new_name
+        self.data["tasks"][index]["subcategory"] = new_name
+        self.data["tasks"][index]["xp"] = new_xp
+        if new_name not in self.data["subcategories"][task["attribute"]]:
+            self.data["subcategories"][task["attribute"]].append(new_name)
+        self.save_data()
+        self.refresh_task_list()
+
+        cx, cy = self.get_center()
+        self.play_floating_text("✏️ QUEST UPDATED", "#88C0D0", cx, cy)
 
     def delete_task(self):
         """Removes a task from memory without giving XP."""
@@ -1932,14 +2038,24 @@ class LifeXPApp:
         """Returns the XP required to pass the given level. Increases by 25% each level."""
         # Attribute XP requirements grow by 25 percent per level. int() rounds the
         # calculated requirement down to a whole number.
-        return int(BASE_XP_NEEDED * (XP_GROWTH_RATE ** (level - 1)))
+        if level not in self.xp_needed_cache:
+            self.xp_needed_cache[level] = int(BASE_XP_NEEDED * (XP_GROWTH_RATE ** (level - 1)))
+        return self.xp_needed_cache[level]
+
+    def get_total_xp_before_level(self, level):
+        """Returns cumulative XP needed to reach a level, cached by level."""
+        highest_cached_level = max(self.total_xp_before_level_cache)
+        total = self.total_xp_before_level_cache[highest_cached_level]
+        for next_level in range(highest_cached_level + 1, level + 1):
+            total += self.get_xp_needed(next_level - 1)
+            self.total_xp_before_level_cache[next_level] = total
+        return self.total_xp_before_level_cache[level]
 
     def get_total_xp_for_stat(self, stat):
         """Returns lifetime XP for one attribute, including already-spent level XP."""
         # Saved stats only keep the XP inside the current level. This helper adds the
         # XP paid for previous levels so account rank can use true lifetime progress.
-        previous_level_xp = sum(self.get_xp_needed(level) for level in range(1, stat["level"]))
-        return stat["xp"] + previous_level_xp
+        return stat["xp"] + self.get_total_xp_before_level(stat["level"])
 
     def get_all_subcategories(self):
         """Returns every known activity name once, sorted for autocomplete."""
@@ -2095,7 +2211,10 @@ class LifeXPApp:
         # after target_date. It groups completed subcategories under their attribute
         # so each colored card can tell one part of the story.
         for record in self.data["history"]:
-            record_date = datetime.fromisoformat(record["date"])
+            try:
+                record_date = datetime.fromisoformat(record["date"])
+            except (TypeError, ValueError):
+                continue
 
             if record_date >= target_date:
                 completed_tasks += 1
