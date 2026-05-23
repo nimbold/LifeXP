@@ -4,6 +4,8 @@ LifeXP is a Python Tkinter desktop app that turns everyday tasks into a small ro
 
 This is also a first-project learning course. The code is intentionally commented in block-level notes so it explains how the app works without making every line unreadable.
 
+New to Python or Tkinter? Start with the [LifeXP Beginner Code Guide](BEGINNER_GUIDE.md). It explains the imports, lists, dictionaries, loops, methods, JSON saving, widgets, and every method in `main.py` with small examples.
+
 ## Features
 
 - Quest Log for accepting, completing, editing, and abandoning quests.
@@ -52,6 +54,7 @@ This file is normal app data. It changes when you complete quests, change themes
 main.py              Main Tkinter application
 lifexp_data.json     Local save data
 README.md            Project overview
+BEGINNER_GUIDE.md    Beginner-friendly tutorial and method map
 ```
 
 ## Learning Goals
