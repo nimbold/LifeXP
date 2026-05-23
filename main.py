@@ -49,7 +49,8 @@ class LifeXPApp:
         # is the parent object that all visible widgets eventually belong to.
         self.root = root
         self.root.title("LifeXP")
-        self.root.geometry("850x700")
+        self.root.geometry("920x800")
+        self.root.minsize(900, 760)
 
         # These are the core game stats. Tasks give XP to one of these attributes,
         # and many later dictionaries use the same names as keys.
@@ -63,12 +64,17 @@ class LifeXPApp:
         self.total_xp_before_level_cache = {1: 0}
         self.current_total_level = 0
         self.themes = self.get_theme_definitions()
-        self.current_theme_name = "Nord RPG"
+        self.current_theme_name = "Tokyo Night"
         self.settings_window = None
 
         # Popup sequence gives simultaneous reward messages small vertical offsets so
         # they fade independently instead of covering the exact same screen position.
         self.popup_sequence = 0
+        self.tab_hover_active = False
+        self.tab_hover_token = 0
+        self.tab_change_token = 0
+        self.tab_selected_bg = None
+        self.tab_active_bg = None
         self._subcategory_cache = None
         self._subcategory_owner_cache = None
         self._tiers_cache = None
@@ -152,7 +158,7 @@ class LifeXPApp:
         self._max_stat_level = self._calculate_max_level()
         self.current_theme_name = self.data["user_info"].get("theme", self.current_theme_name)
         if self.current_theme_name not in self.themes:
-            self.current_theme_name = "Nord RPG"
+            self.current_theme_name = "Tokyo Night"
             self.data["user_info"]["theme"] = self.current_theme_name
         self.apply_modern_theme()
 
@@ -293,6 +299,35 @@ class LifeXPApp:
             }
         }
 
+    def _hex_to_rgb(self, color):
+        """Converts a #RRGGBB color into RGB channel values."""
+        color = str(color).lstrip("#")
+        if len(color) != 6:
+            return 0, 0, 0
+        return tuple(int(color[index:index + 2], 16) for index in (0, 2, 4))
+
+    def get_contrast_ratio(self, foreground, background):
+        """Returns the WCAG contrast ratio for two hex colors."""
+        def channel(value):
+            value = value / 255.0
+            return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+
+        def luminance(color):
+            red, green, blue = self._hex_to_rgb(color)
+            return (0.2126 * channel(red)) + (0.7152 * channel(green)) + (0.0722 * channel(blue))
+
+        light = max(luminance(foreground), luminance(background))
+        dark = min(luminance(foreground), luminance(background))
+        return (light + 0.05) / (dark + 0.05)
+
+    def get_readable_text_color(self, background, preferred=None):
+        """Keeps text readable on light and dark theme surfaces."""
+        if preferred and self.get_contrast_ratio(preferred, background) >= 4.5:
+            return preferred
+
+        candidates = ["#FFFFFF", "#F4F7FF", "#111827", "#000000"]
+        return max(candidates, key=lambda color: self.get_contrast_ratio(color, background))
+
     def apply_modern_theme(self):
         """Overrides default system styling to create a cohesive dark 'RPG' look."""
         # ttk widgets use a Style object for shared appearance rules. The clam theme is
@@ -306,9 +341,15 @@ class LifeXPApp:
         self.bg_dark = theme["bg_dark"]
         self.bg_light = theme["bg_light"]
         self.accent_green = theme["accent"]
-        self.text_color = theme["text"]
-        self.card_text_color = theme["card_text"]
+        self.text_color = self.get_readable_text_color(self.bg_light, theme["text"])
+        self.dark_surface_text_color = self.get_readable_text_color(self.bg_dark, self.text_color)
+        self.accent_text_color = self.get_readable_text_color(self.accent_green, self.bg_dark)
+        self.card_text_color = self.get_readable_text_color(self.bg_light, theme["card_text"])
         self.attr_colors = theme["attr_colors"].copy()
+        self.attr_text_colors = {
+            attr: self.get_readable_text_color(color, self.card_text_color)
+            for attr, color in self.attr_colors.items()
+        }
 
         # The root window is a normal tk widget, so it is configured directly rather
         # than through ttk.Style.
@@ -318,11 +359,35 @@ class LifeXPApp:
         # sets normal values, while map() sets values for states like selected/active.
         self.style.configure('TFrame', background=self.bg_dark)
         self.style.configure('TNotebook', background=self.bg_dark, borderwidth=0)
+        self.style.layout(
+            'TNotebook.Tab',
+            [('Notebook.tab', {'sticky': 'nswe', 'children': [
+                ('Notebook.padding', {'side': 'top', 'sticky': 'nswe', 'children': [
+                    ('Notebook.label', {'side': 'top', 'sticky': ''})
+                ]})
+            ]})]
+        )
         self.style.configure('TNotebook.Tab', background=self.bg_light, foreground=self.text_color, padding=[18, 9], font=('{San Francisco}', 11, 'bold'))
-        self.style.map('TNotebook.Tab', background=[('selected', self.accent_green)], foreground=[('selected', self.bg_dark)])
+        self.configure_notebook_tab_style(selected_bg=self.accent_green, active_bg=self.bg_light)
 
         self.style.configure('TButton', background=self.bg_light, foreground=self.text_color, font=('{San Francisco}', 11), padding=6)
-        self.style.map('TButton', background=[('active', self.accent_green)], foreground=[('active', self.bg_dark)])
+        self.style.map('TButton', background=[('active', self.accent_green)], foreground=[('active', self.accent_text_color)])
+        self.style.configure(
+            'Settings.TCombobox',
+            fieldbackground=self.bg_light,
+            background=self.bg_light,
+            foreground=self.text_color,
+            arrowcolor=self.text_color,
+            selectbackground=self.accent_green,
+            selectforeground=self.accent_text_color
+        )
+        self.style.map(
+            'Settings.TCombobox',
+            fieldbackground=[('readonly', self.bg_light)],
+            foreground=[('readonly', self.text_color)],
+            selectbackground=[('readonly', self.accent_green)],
+            selectforeground=[('readonly', self.accent_text_color)]
+        )
         self.style.configure('QuestAccept.TButton', background="#FFFFFF", foreground="#1D1D1F", font=('{San Francisco}', 11, 'bold'), padding=8)
         self.style.map('QuestAccept.TButton', background=[('active', '#E5E5EA')], foreground=[('active', '#1D1D1F')])
         self.style.configure('QuestComplete.TButton', background="#34C759", foreground="#0B2A12", font=('{San Francisco}', 11, 'bold'), padding=8)
@@ -337,7 +402,7 @@ class LifeXPApp:
         self.style.configure('TLabelframe', background=self.bg_dark, foreground=self.accent_green, font=('{San Francisco}', 12, 'bold'))
         self.style.configure('TLabelframe.Label', background=self.bg_dark, foreground=self.accent_green)
 
-        self.style.configure('TLabel', background=self.bg_dark, foreground=self.text_color, font=('{San Francisco}', 11))
+        self.style.configure('TLabel', background=self.bg_dark, foreground=self.dark_surface_text_color, font=('{San Francisco}', 11))
         self.style.configure('Horizontal.TProgressbar', background=self.accent_green, troughcolor=self.bg_light, bordercolor=self.bg_dark, lightcolor=self.accent_green, darkcolor=self.accent_green)
 
         # Each RPG attribute gets its own progress-bar style. The loop prevents writing
@@ -348,7 +413,7 @@ class LifeXPApp:
         # Treeview is the table widget used for the quest list. Its heading, row color,
         # selection color, and row height are styled separately from other widgets.
         self.style.configure('Treeview', background=self.bg_light, foreground=self.text_color, fieldbackground=self.bg_light, borderwidth=0, rowheight=34, font=('{San Francisco}', 11))
-        self.style.map('Treeview', background=[('selected', self.accent_green)], foreground=[('selected', self.bg_dark)])
+        self.style.map('Treeview', background=[('selected', self.accent_green)], foreground=[('selected', self.accent_text_color)])
         self.style.configure('Treeview.Heading', background=self.bg_light, foreground=self.accent_green, relief=tk.FLAT, font=('{San Francisco}', 11, 'bold'))
 
     def fit_window_to_content(self, window, min_width=360, min_height=260, center=True):
@@ -456,6 +521,79 @@ class LifeXPApp:
         for child in widget.winfo_children():
             self.recolor_widget_tree(child, color_map)
 
+    def configure_notebook_tab_style(self, selected_bg=None, active_bg=None):
+        """Applies selected and hover colors to notebook tabs."""
+        if selected_bg is None:
+            selected_bg = self.tab_selected_bg or self.accent_green
+        if active_bg is None:
+            active_bg = self.tab_active_bg or self.bg_light
+
+        self.tab_selected_bg = selected_bg
+        self.tab_active_bg = active_bg
+        selected_fg = self.get_readable_text_color(selected_bg, self.accent_text_color)
+        active_fg = self.get_readable_text_color(active_bg, self.text_color)
+        self.style.map(
+            'TNotebook.Tab',
+            background=[('selected', selected_bg), ('active', active_bg)],
+            foreground=[('selected', selected_fg), ('active', active_fg)]
+        )
+
+    def handle_tab_hover_motion(self, event):
+        """Animates tab hover fill when the pointer is over a notebook tab."""
+        try:
+            self.notebook.index(f"@{event.x},{event.y}")
+        except tk.TclError:
+            self.set_tab_hover(False)
+            return
+
+        self.set_tab_hover(True)
+
+    def set_tab_hover(self, is_hovering):
+        """Eases notebook hover color in and out."""
+        if self.tab_hover_active == is_hovering:
+            return
+
+        self.tab_hover_active = is_hovering
+        self.tab_hover_token += 1
+        token = self.tab_hover_token
+        start = self.tab_active_bg or self.bg_light
+        target = self._blend_color(self.bg_light, self.accent_green, 0.78) if is_hovering else self.bg_light
+
+        def step(index=1, frames=8):
+            if self.tab_hover_token != token or self.tab_hover_active != is_hovering:
+                return
+            ratio = self.ease_smoothstep(index / float(frames))
+            self.configure_notebook_tab_style(active_bg=self._blend_color(start, target, ratio))
+            if index < frames:
+                self.root.after(18, step, index + 1, frames)
+
+        step()
+
+    def play_tab_change_animation(self, event=None):
+        """Pulses the selected tab with a smooth neon glow on tab change."""
+        self.tab_change_token += 1
+        token = self.tab_change_token
+        base = self.accent_green
+        peak = self._blend_color(self.accent_green, "#FFFFFF", 0.46)
+        total_frames = 18
+        peak_frame = total_frames // 2
+
+        def step(index=0):
+            if self.tab_change_token != token:
+                return
+            if index <= total_frames:
+                if index <= peak_frame:
+                    progress = self.ease_smoothstep(index / float(peak_frame))
+                else:
+                    progress = 1 - self.ease_smoothstep((index - peak_frame) / float(total_frames - peak_frame))
+                self.configure_notebook_tab_style(selected_bg=self._blend_color(base, peak, progress))
+                self.root.after(18, step, index + 1)
+                return
+
+            self.configure_notebook_tab_style(selected_bg=base)
+
+        step()
+
     def setup_header(self):
         """Builds the User Account bar at the top right of the application."""
         # The header is a horizontal profile area at the top. It holds the avatar icon
@@ -463,13 +601,10 @@ class LifeXPApp:
         self.header_frame = tk.Frame(self.root, bg=self.bg_light)
         self.header_frame.pack(side=tk.TOP, fill=tk.X, padx=20, pady=(16, 0))
 
-        self.settings_button = ttk.Button(self.header_frame, text="⚙ Settings", command=self.open_settings_page)
-        self.settings_button.pack(side=tk.LEFT, padx=14, pady=12)
-
         # The app title anchors the toolbar so the top of the window feels like one
         # intentional surface instead of loose widgets floating on the background.
         self.app_title_frame = tk.Frame(self.header_frame, bg=self.bg_light)
-        self.app_title_frame.pack(side=tk.LEFT, padx=(4, 0))
+        self.app_title_frame.pack(side=tk.LEFT, padx=(18, 0), pady=12)
         self.app_title_label = tk.Label(
             self.app_title_frame,
             text="LifeXP",
@@ -618,6 +753,7 @@ class LifeXPApp:
         # The Notebook widget creates tabs. Each tab is just a Frame that later receives
         # its own controls.
         self.notebook = ttk.Notebook(self.root)
+        self.notebook.configure(takefocus=False)
         self.notebook.pack(expand=True, fill='both', padx=20, pady=20)
 
         self.tab_tasks = ttk.Frame(self.notebook)
@@ -630,6 +766,9 @@ class LifeXPApp:
         self.notebook.add(self.tab_tasks, text=" Quest Log", image=self.tab_icons["tasks"], compound=tk.LEFT)
         self.notebook.add(self.tab_character, text=" Character Info", image=self.tab_icons["character"], compound=tk.LEFT)
         self.notebook.add(self.tab_summary, text=" Chronicles", image=self.tab_icons["chronicles"], compound=tk.LEFT)
+        self.notebook.bind("<Motion>", self.handle_tab_hover_motion)
+        self.notebook.bind("<Leave>", lambda event: self.set_tab_hover(False))
+        self.notebook.bind("<<NotebookTabChanged>>", self.play_tab_change_animation)
 
         # Each tab is built by its own helper method. This keeps setup_ui() readable
         # and separates the three screens of the app.
@@ -735,6 +874,330 @@ class LifeXPApp:
         palette = {"Y": color}
         return self.create_pixel_icon(pattern, palette, pixel_size=4)
 
+    def get_quest_action_palette(self, role):
+        """Returns compact button colors for the quest action rail."""
+        vitality = self.attr_colors["Vitality"]
+        strength = self.attr_colors["Strength"]
+        agility = self.attr_colors["Agility"]
+        accept = self.accent_green
+        dark_text = "#0F172A"
+
+        def button_text(background):
+            return dark_text if self.get_contrast_ratio(dark_text, background) >= 4.5 else self.get_readable_text_color(background)
+
+        palettes = {
+            "accept": {
+                "fill": self._blend_color(accept, "#FFFFFF", 0.35),
+                "fg": button_text(self._blend_color(accept, "#FFFFFF", 0.35)),
+                "accent": accept,
+                "hover": accept,
+                "hover_fg": button_text(accept),
+                "border": accept,
+                "glow": accept
+            },
+            "complete": {
+                "fill": self._blend_color(vitality, "#FFFFFF", 0.35),
+                "fg": button_text(self._blend_color(vitality, "#FFFFFF", 0.35)),
+                "accent": vitality,
+                "hover": vitality,
+                "hover_fg": button_text(vitality),
+                "border": vitality,
+                "glow": vitality
+            },
+            "edit": {
+                "fill": self._blend_color(agility, "#FFFFFF", 0.35),
+                "fg": button_text(self._blend_color(agility, "#FFFFFF", 0.35)),
+                "accent": agility,
+                "hover": agility,
+                "hover_fg": button_text(agility),
+                "border": agility,
+                "glow": agility
+            },
+            "abandon": {
+                "fill": self._blend_color(strength, "#FFFFFF", 0.35),
+                "fg": button_text(self._blend_color(strength, "#FFFFFF", 0.35)),
+                "accent": strength,
+                "hover": strength,
+                "hover_fg": button_text(strength),
+                "border": strength,
+                "glow": strength
+            }
+        }
+        return palettes[role]
+
+    def create_quest_action_button(self, parent, icon, text, role, command, strong_feedback=False):
+        """Builds an icon-led Tk button with click feedback for quest actions."""
+        palette = self.get_quest_action_palette(role)
+        border = tk.Frame(parent, bg=palette["border"])
+        button = tk.Frame(
+            border,
+            bg=palette["fill"],
+            cursor="hand2",
+        )
+        button.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+
+        icon_label = tk.Label(
+            button,
+            text=icon,
+            bg=palette["fill"],
+            fg=palette["fg"],
+            font=("{San Francisco}", 11, "bold"),
+            cursor="hand2"
+        )
+        icon_label.pack(side=tk.LEFT, padx=(9, 7), pady=7)
+
+        text_label = tk.Label(
+            button,
+            text=text,
+            bg=palette["fill"],
+            fg=palette["fg"],
+            font=("{San Francisco}", 10, "bold"),
+            cursor="hand2"
+        )
+        text_label.pack(side=tk.LEFT, pady=7)
+
+        button._quest_role = role
+        button._quest_palette = palette
+        button._quest_hovering = False
+        button._quest_hover_token = 0
+        button._quest_labels = (icon_label, text_label)
+        if not hasattr(self, "quest_action_buttons"):
+            self.quest_action_buttons = []
+        self.quest_action_buttons.append(button)
+
+        for widget in (button, icon_label, text_label):
+            widget.bind("<Button-1>", lambda event, surface=button: self.run_quest_action(surface, command, strong_feedback))
+            widget.bind("<Enter>", lambda event, surface=button: self.handle_quest_hover_enter(surface))
+            widget.bind("<Leave>", lambda event, surface=button: self.handle_quest_hover_leave(surface))
+        return border
+
+    def configure_quest_surface(self, button, bg, fg):
+        """Colors a custom quest action surface and its labels."""
+        button.configure(bg=bg)
+        for label in getattr(button, "_quest_labels", ()):
+            label.configure(bg=bg, fg=fg)
+
+    def pointer_inside_widget(self, widget):
+        """Returns True when the mouse pointer is inside a widget's screen box."""
+        try:
+            pointer_x = widget.winfo_pointerx()
+            pointer_y = widget.winfo_pointery()
+            left = widget.winfo_rootx()
+            top = widget.winfo_rooty()
+            right = left + widget.winfo_width()
+            bottom = top + widget.winfo_height()
+        except tk.TclError:
+            return False
+        return left <= pointer_x < right and top <= pointer_y < bottom
+
+    def handle_quest_hover_enter(self, button):
+        """Starts quest hover only when entering the whole control."""
+        self.set_quest_button_hover(button, True)
+
+    def handle_quest_hover_leave(self, button):
+        """Leaves quest hover only after the pointer exits the whole control."""
+        self.root.after(12, lambda surface=button: (
+            surface.winfo_exists()
+            and not self.pointer_inside_widget(surface.master)
+            and self.set_quest_button_hover(surface, False)
+        ))
+
+    def set_quest_button_hover(self, button, is_hovering):
+        """Fills a quest button with its action color while hovered."""
+        if not button.winfo_exists():
+            return
+        if button._quest_hovering == is_hovering:
+            return
+        button._quest_hovering = is_hovering
+        button._quest_hover_token += 1
+        token = button._quest_hover_token
+        palette = button._quest_palette
+        start = str(button.cget("bg"))
+        end = palette["hover"] if is_hovering else palette["fill"]
+        end_fg = palette["hover_fg"] if is_hovering else palette["fg"]
+
+        def step(index=1, frames=5):
+            if not button.winfo_exists() or button._quest_hovering != is_hovering or button._quest_hover_token != token:
+                return
+            ratio = index / float(frames)
+            self.configure_quest_surface(button, self._blend_color(start, end, ratio), end_fg)
+            if index < frames:
+                self.root.after(20, step, index + 1, frames)
+
+        step()
+
+    def refresh_quest_action_buttons(self):
+        """Updates custom action buttons after a theme change."""
+        if not hasattr(self, "quest_action_buttons"):
+            return
+
+        for button in self.quest_action_buttons:
+            if not button.winfo_exists():
+                continue
+            palette = self.get_quest_action_palette(button._quest_role)
+            button._quest_palette = palette
+            self.configure_quest_surface(button, palette["fill"], palette["fg"])
+            button.master.configure(bg=palette["border"])
+
+    def run_quest_action(self, button, command, strong_feedback=False):
+        """Runs a quest action after immediate tactile UI feedback."""
+        if strong_feedback and not self.task_tree.selection():
+            self.play_quest_button_miss(button)
+            command()
+            return
+
+        self.play_quest_button_feedback(button, strong=strong_feedback, on_done=command)
+
+    def play_quest_button_miss(self, button):
+        """Flashes the Complete button when no quest is selected."""
+        palette = button._quest_palette
+        miss_color = self.attr_colors["Strength"]
+        sequence = [miss_color, palette["fill"], miss_color, palette["fill"]]
+
+        def step(index=0):
+            if index >= len(sequence) or not button.winfo_exists():
+                return
+            self.configure_quest_surface(button, sequence[index], palette["fg"])
+            self.root.after(55, step, index + 1)
+
+        step()
+
+    def play_quest_button_feedback(self, button, strong=False, on_done=None):
+        """Animates the button frame as a short neon pulse before running the action."""
+        if not button.winfo_exists():
+            if on_done:
+                on_done()
+            return
+
+        palette = button._quest_palette
+        border = button.master
+        glow = palette["glow"]
+        base_fill = palette["hover"] if button._quest_hovering else palette["fill"]
+        total_frames = 18
+        peak_frame = total_frames // 2
+
+        def step(index=0):
+            if not button.winfo_exists() or not border.winfo_exists():
+                if on_done:
+                    on_done()
+                return
+            if index <= total_frames:
+                if index <= peak_frame:
+                    progress = self.ease_smoothstep(index / float(peak_frame))
+                else:
+                    progress = 1 - self.ease_smoothstep((index - peak_frame) / float(total_frames - peak_frame))
+
+                border_color = self._blend_color(palette["border"], self._blend_color(glow, "#FFFFFF", 0.42), progress)
+                fill_color = self._blend_color(base_fill, self._blend_color(palette["hover"], "#FFFFFF", 0.16), progress * 0.75)
+                fg = palette["hover_fg"] if progress > 0.08 or button._quest_hovering else palette["fg"]
+                border.configure(bg=border_color)
+                self.configure_quest_surface(button, fill_color, fg)
+                self.root.after(18, step, index + 1)
+                return
+
+            border.configure(bg=palette["border"])
+            self.set_quest_button_hover(button, button._quest_hovering)
+            if on_done:
+                on_done()
+
+        step()
+
+    def get_settings_button_palette(self):
+        """Returns colors for the settings control feedback."""
+        border = self._blend_color(self.bg_light, self.text_color, 0.42)
+        return {
+            "fill": self.bg_light,
+            "fg": self.text_color,
+            "hover": self.accent_green,
+            "hover_fg": self.accent_text_color,
+            "border": border,
+            "glow": self.accent_green
+        }
+
+    def set_settings_button_hover(self, is_hovering):
+        """Fills the settings control while hovered."""
+        if not hasattr(self, "settings_surface") or not self.settings_surface.winfo_exists():
+            return
+        if self.settings_button_hovering == is_hovering:
+            return
+        self.settings_button_hovering = is_hovering
+        self.settings_hover_token += 1
+        token = self.settings_hover_token
+        palette = self.get_settings_button_palette()
+        start = str(self.settings_surface.cget("bg"))
+        end = palette["hover"] if is_hovering else palette["fill"]
+        end_fg = palette["hover_fg"] if is_hovering else palette["fg"]
+
+        def step(index=1, frames=5):
+            if not self.settings_surface.winfo_exists() or self.settings_button_hovering != is_hovering or self.settings_hover_token != token:
+                return
+            ratio = index / float(frames)
+            color = self._blend_color(start, end, ratio)
+            self.settings_surface.configure(bg=color)
+            self.settings_icon_label.configure(bg=color, fg=end_fg)
+            self.settings_text_label.configure(bg=color, fg=end_fg)
+            if index < frames:
+                self.root.after(20, step, index + 1, frames)
+
+        step()
+
+    def handle_settings_hover_enter(self):
+        """Starts settings hover only when entering the whole control."""
+        self.set_settings_button_hover(True)
+
+    def handle_settings_hover_leave(self):
+        """Leaves settings hover only after the pointer exits the whole control."""
+        self.root.after(12, lambda: (
+            hasattr(self, "settings_button")
+            and self.settings_button.winfo_exists()
+            and not self.pointer_inside_widget(self.settings_button)
+            and self.set_settings_button_hover(False)
+        ))
+
+    def run_settings_action(self):
+        """Runs the settings action after neon feedback."""
+        self.play_settings_button_feedback(on_done=self.open_settings_page)
+
+    def play_settings_button_feedback(self, on_done=None):
+        """Pulses the settings frame like the quest action buttons."""
+        if not hasattr(self, "settings_surface") or not self.settings_surface.winfo_exists():
+            if on_done:
+                on_done()
+            return
+
+        palette = self.get_settings_button_palette()
+        base_fill = palette["hover"] if getattr(self, "settings_button_hovering", False) else palette["fill"]
+        total_frames = 18
+        peak_frame = total_frames // 2
+
+        def step(index=0):
+            if not self.settings_button.winfo_exists() or not self.settings_surface.winfo_exists():
+                if on_done:
+                    on_done()
+                return
+            if index <= total_frames:
+                if index <= peak_frame:
+                    progress = self.ease_smoothstep(index / float(peak_frame))
+                else:
+                    progress = 1 - self.ease_smoothstep((index - peak_frame) / float(total_frames - peak_frame))
+
+                border_color = self._blend_color(palette["border"], self._blend_color(palette["glow"], "#FFFFFF", 0.42), progress)
+                fill_color = self._blend_color(base_fill, self._blend_color(palette["hover"], "#FFFFFF", 0.16), progress * 0.75)
+                fg = palette["hover_fg"] if progress > 0.08 or getattr(self, "settings_button_hovering", False) else palette["fg"]
+                self.settings_button.configure(bg=border_color)
+                self.settings_surface.configure(bg=fill_color)
+                self.settings_icon_label.configure(bg=fill_color, fg=fg)
+                self.settings_text_label.configure(bg=fill_color, fg=fg)
+                self.root.after(18, step, index + 1)
+                return
+
+            self.settings_button.configure(bg=palette["border"])
+            self.set_settings_button_hover(getattr(self, "settings_button_hovering", False))
+            if on_done:
+                on_done()
+
+        step()
+
     def setup_tasks_tab(self):
         """Paints the 'Quest Log' tab (task list and action buttons)."""
         # The Quest Log tab is split into a large table on the left and an action panel
@@ -778,7 +1241,8 @@ class LifeXPApp:
 
         # Buttons call methods instead of doing work directly. This is an event-driven
         # style: Tkinter waits for a click, then runs the command function.
-        control_frame = tk.Frame(page, bg=self.bg_light, width=190)
+        self.quest_action_buttons = []
+        control_frame = tk.Frame(page, bg=self.bg_light, width=210)
         control_frame.pack(side=tk.RIGHT, fill=tk.Y)
         control_frame.pack_propagate(False)
 
@@ -790,12 +1254,54 @@ class LifeXPApp:
             font=("{San Francisco}", 14, "bold")
         ).pack(anchor=tk.W, padx=16, pady=(16, 4))
 
-        # Color now carries the button meaning: neutral white for creating, green for
-        # success, yellow for editing/caution, and red for destructive abandon.
-        ttk.Button(control_frame, text="Accept Quest", style="QuestAccept.TButton", command=self.add_task_dialog).pack(fill=tk.X, padx=16, pady=(8, 8))
-        ttk.Button(control_frame, text="Complete Quest", style="QuestComplete.TButton", command=self.complete_task).pack(fill=tk.X, padx=16, pady=8)
-        ttk.Button(control_frame, text="Edit Quest", style="QuestEdit.TButton", command=self.edit_task_dialog).pack(fill=tk.X, padx=16, pady=8)
-        ttk.Button(control_frame, text="Abandon Quest", style="QuestAbandon.TButton", command=self.delete_task).pack(fill=tk.X, padx=16, pady=8)
+        action_stack = tk.Frame(control_frame, bg=self.bg_light)
+        action_stack.pack(fill=tk.X, padx=12, pady=(8, 0))
+
+        self.create_quest_action_button(action_stack, "+", "Accept Quest", "accept", self.add_task_dialog).pack(fill=tk.X, pady=(0, 9))
+        self.create_quest_action_button(action_stack, "✓", "Complete Quest", "complete", self.complete_task, strong_feedback=True).pack(fill=tk.X, pady=(0, 9))
+        self.create_quest_action_button(action_stack, "✎", "Edit Quest", "edit", self.edit_task_dialog).pack(fill=tk.X, pady=(0, 9))
+        self.create_quest_action_button(action_stack, "×", "Abandon Quest", "abandon", self.delete_task).pack(fill=tk.X, pady=(0, 9))
+
+        settings_row = tk.Frame(control_frame, bg=self.bg_light)
+        settings_row.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=(8, 16))
+        self.settings_button = tk.Frame(
+            settings_row,
+            bg=self.get_settings_button_palette()["border"],
+            height=47,
+            cursor="hand2",
+        )
+        self.settings_button.pack_propagate(False)
+        self.settings_button_hovering = False
+        self.settings_hover_token = 0
+        self.settings_button.pack(fill=tk.X)
+        self.settings_surface = tk.Frame(
+            self.settings_button,
+            bg=self.bg_light,
+            cursor="hand2"
+        )
+        self.settings_surface.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        self.settings_icon_label = tk.Label(
+            self.settings_surface,
+            text="⚙",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 11, "bold"),
+            cursor="hand2"
+        )
+        self.settings_icon_label.pack(side=tk.LEFT, padx=(9, 7), pady=7)
+        self.settings_text_label = tk.Label(
+            self.settings_surface,
+            text="Settings",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 10, "bold"),
+            cursor="hand2"
+        )
+        self.settings_text_label.pack(side=tk.LEFT, pady=7)
+        for widget in (self.settings_button, self.settings_surface, self.settings_icon_label, self.settings_text_label):
+            widget.bind("<Button-1>", lambda event: self.run_settings_action())
+            widget.bind("<Enter>", lambda event: self.handle_settings_hover_enter())
+            widget.bind("<Leave>", lambda event: self.handle_settings_hover_leave())
 
     def get_tiers(self):
         # Trophy tiers expand when the character gets stronger. Below level 25 the UI
@@ -821,8 +1327,8 @@ class LifeXPApp:
 
         # More tiers means more rows, so icons and labels shrink slightly to keep the
         # trophy room from taking too much space.
-        icon_size = 30 if len(tiers) > 3 else 50
-        font_size = 8 if len(tiers) > 3 else 9
+        icon_size = 24 if len(tiers) > 3 else 50
+        font_size = 7 if len(tiers) > 3 else 9
 
         # The outer loop creates one column per attribute. The inner loop creates one
         # trophy cell per tier inside that attribute column.
@@ -838,7 +1344,7 @@ class LifeXPApp:
 
             for row_idx, (tier_name, level_req) in enumerate(tiers):
                 cell_frame = tk.Frame(self.trophies_frame, bg=self.bg_light)
-                cell_frame.grid(row=row_idx+1, column=col_idx, pady=2)
+                cell_frame.grid(row=row_idx+1, column=col_idx, pady=1)
 
                 c = tk.Canvas(cell_frame, width=icon_size, height=icon_size, bg=self.bg_light, highlightthickness=0)
                 c.pack()
@@ -972,7 +1478,7 @@ class LifeXPApp:
                 text=attr,
                 font=("{San Francisco}", 11, "bold"),
                 bg=self.attr_colors[attr],
-                fg=self.card_text_color
+                fg=self.attr_text_colors[attr]
             )
             title.pack(fill=tk.X, padx=6, pady=(8, 2))
 
@@ -981,7 +1487,7 @@ class LifeXPApp:
                 wrap=tk.WORD,
                 font=("{San Francisco}", 9),
                 bg=self.attr_colors[attr],
-                fg=self.card_text_color,
+                fg=self.attr_text_colors[attr],
                 bd=0,
                 highlightthickness=0,
                 padx=6,
@@ -1013,6 +1519,10 @@ class LifeXPApp:
         self.settings_window.title("Settings")
         self.settings_window.configure(bg=self.bg_dark)
         self.settings_window.transient(self.root)
+        self.settings_window.option_add("*TCombobox*Listbox.background", self.bg_light)
+        self.settings_window.option_add("*TCombobox*Listbox.foreground", self.text_color)
+        self.settings_window.option_add("*TCombobox*Listbox.selectBackground", self.accent_green)
+        self.settings_window.option_add("*TCombobox*Listbox.selectForeground", self.accent_text_color)
 
         surface = tk.Frame(self.settings_window, bg=self.bg_dark)
         surface.pack(fill=tk.BOTH, expand=True, padx=22, pady=20)
@@ -1022,7 +1532,7 @@ class LifeXPApp:
             text="Settings",
             font=("{San Francisco}", 22, "bold"),
             bg=self.bg_dark,
-            fg=self.text_color
+            fg=self.dark_surface_text_color
         )
         header.pack(fill=tk.X)
 
@@ -1048,6 +1558,7 @@ class LifeXPApp:
             textvariable=selected_theme,
             values=list(self.themes.keys()),
             state="readonly",
+            style="Settings.TCombobox",
             font=("{San Francisco}", 11)
         )
         theme_picker.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -1157,6 +1668,7 @@ class LifeXPApp:
         previous_bg_light = self.bg_light
         previous_accent = self.accent_green
         previous_text = self.text_color
+        previous_dark_surface_text = self.dark_surface_text_color
         previous_card_text = self.card_text_color
         previous_attr_colors = self.attr_colors.copy()
 
@@ -1170,6 +1682,7 @@ class LifeXPApp:
             previous_bg_light: self.bg_light,
             previous_accent: self.accent_green,
             previous_text: self.text_color,
+            previous_dark_surface_text: self.dark_surface_text_color,
             previous_card_text: self.card_text_color
         }
         for attr, previous_color in previous_attr_colors.items():
@@ -1190,6 +1703,7 @@ class LifeXPApp:
                 self.recolor_widget_tree(self.settings_window, color_map)
             self.update_stats_display()
             self.refresh_task_list()
+            self.refresh_theme_widgets()
         else:
             self.refresh_theme_widgets()
 
@@ -1238,12 +1752,23 @@ class LifeXPApp:
                 self.app_title_frame.configure(bg=self.bg_light)
                 self.app_title_label.configure(bg=self.bg_light, fg=self.text_color)
 
+        if hasattr(self, "settings_button"):
+            palette = self.get_settings_button_palette()
+            self.settings_button.configure(
+                bg=palette["border"]
+            )
+            self.settings_surface.configure(bg=palette["fill"])
+            self.settings_icon_label.configure(bg=palette["fill"], fg=palette["fg"])
+            self.settings_text_label.configure(bg=palette["fill"], fg=palette["fg"])
+
+        self.refresh_quest_action_buttons()
+
         if hasattr(self, "summary_title_label"):
             self.summary_title_label.configure(bg=self.bg_light, fg=self.text_color)
             for attr, widgets in self.summary_cards.items():
                 widgets["title"].master.configure(bg=self.attr_colors[attr])
-                widgets["title"].configure(bg=self.attr_colors[attr], fg=self.card_text_color)
-                widgets["body"].configure(bg=self.attr_colors[attr], fg=self.card_text_color)
+                widgets["title"].configure(bg=self.attr_colors[attr], fg=self.attr_text_colors[attr])
+                widgets["body"].configure(bg=self.attr_colors[attr], fg=self.attr_text_colors[attr])
 
         if hasattr(self, "trophies_frame"):
             self.rebuild_trophy_room()
@@ -1595,7 +2120,7 @@ class LifeXPApp:
             header,
             text="Accept Quest",
             bg=self.bg_dark,
-            fg=self.text_color,
+            fg=self.dark_surface_text_color,
             font=("{San Francisco}", 22, "bold")
         ).pack(anchor=tk.W)
         tk.Label(
@@ -1614,7 +2139,7 @@ class LifeXPApp:
             category_section,
             text="Target Attribute",
             bg=self.bg_dark,
-            fg=self.text_color,
+            fg=self.dark_surface_text_color,
             font=("{San Francisco}", 11, "bold")
         ).pack(anchor=tk.W)
 
@@ -1629,7 +2154,7 @@ class LifeXPApp:
                 selected = attr_var.get() == attr
                 chip.config(
                     bg=self.attr_colors[attr] if selected else self.bg_light,
-                    fg=self.card_text_color if selected else self.text_color,
+                    fg=self.attr_text_colors[attr] if selected else self.text_color,
                     relief=tk.FLAT if selected else tk.GROOVE,
                     bd=0 if selected else 1
                 )
@@ -1667,7 +2192,7 @@ class LifeXPApp:
             search_section,
             text="Activity",
             bg=self.bg_dark,
-            fg=self.text_color,
+            fg=self.dark_surface_text_color,
             font=("{San Francisco}", 11, "bold")
         ).pack(anchor=tk.W)
         tk.Label(
