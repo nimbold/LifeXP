@@ -69,6 +69,12 @@ class LifeXPApp:
         # Popup sequence gives simultaneous reward messages small vertical offsets so
         # they fade independently instead of covering the exact same screen position.
         self.popup_sequence = 0
+        self._subcategory_cache = None
+        self._subcategory_owner_cache = None
+        self._tiers_cache = None
+        self._tiers_cache_expanded = None
+        self._last_rendered_tiers = None
+        self._max_stat_level = 1
 
         # Visual configuration lives near the top so the rest of the app can reuse it.
         # Each attribute gets one color, which is later used in bars, graphs, and art.
@@ -143,6 +149,7 @@ class LifeXPApp:
         # load before labels can show the current name, XP, tasks, and levels.
         self.apply_modern_theme()
         self.data = self.load_data()
+        self._max_stat_level = self._calculate_max_level()
         self.current_theme_name = self.data["user_info"].get("theme", self.current_theme_name)
         if self.current_theme_name not in self.themes:
             self.current_theme_name = "Nord RPG"
@@ -793,11 +800,14 @@ class LifeXPApp:
     def get_tiers(self):
         # Trophy tiers expand when the character gets stronger. Below level 25 the UI
         # shows three tiers; after that it reveals higher long-term goals.
-        max_level = max([stat["level"] for stat in self.data["stats"].values()] + [1])
-        if max_level > 25:
-            return [("Apprentice", 5), ("Adept", 10), ("Master", 25), ("Grandmaster", 50), ("Legend", 100)]
-        else:
-            return [("Apprentice", 5), ("Adept", 10), ("Master", 25)]
+        tiers_expanded = self._max_stat_level > 25
+        if self._tiers_cache is None or tiers_expanded != self._tiers_cache_expanded:
+            self._tiers_cache_expanded = tiers_expanded
+            if tiers_expanded:
+                self._tiers_cache = [("Apprentice", 5), ("Adept", 10), ("Master", 25), ("Grandmaster", 50), ("Legend", 100)]
+            else:
+                self._tiers_cache = [("Apprentice", 5), ("Adept", 10), ("Master", 25)]
+        return self._tiers_cache
 
     def rebuild_trophy_room(self):
         # Rebuilding means clearing the old trophy widgets, then creating a fresh grid
@@ -807,6 +817,7 @@ class LifeXPApp:
 
         self.trophy_canvases = {}
         tiers = self.get_tiers()
+        self._last_rendered_tiers = tiers
 
         # More tiers means more rows, so icons and labels shrink slightly to keep the
         # trophy room from taking too much space.
@@ -1198,6 +1209,9 @@ class LifeXPApp:
         self.data["history"] = []
         self.data["trophies"] = []
         self.current_total_level = 0
+        self._max_stat_level = 1
+        self._invalidate_subcategory_cache()
+        self._invalidate_tier_cache()
 
         self.save_data()
         self.refresh_task_list()
@@ -1243,6 +1257,21 @@ class LifeXPApp:
     # This group is responsible for memory: creating default data, loading saved
     # JSON, migrating old saves, and writing changes back to disk.
     # ==============================================================================
+    def _calculate_max_level(self):
+        """Returns the highest attribute level in the current save data."""
+        return max((stat["level"] for stat in self.data["stats"].values()), default=1)
+
+    def _invalidate_subcategory_cache(self):
+        """Clears derived autocomplete data after activity names change."""
+        self._subcategory_cache = None
+        self._subcategory_owner_cache = None
+
+    def _invalidate_tier_cache(self):
+        """Clears derived trophy tier data after level thresholds may change."""
+        self._tiers_cache = None
+        self._tiers_cache_expanded = None
+        self._last_rendered_tiers = None
+
     def load_data(self):
         """Reads saved data. Includes complex migrations to prevent crashes."""
         # default_data is the safe starting shape for the app. It documents what keys
@@ -1687,19 +1716,21 @@ class LifeXPApp:
         # Nested helper functions are useful when logic belongs only inside one dialog.
         # This one rebuilds autocomplete suggestions whenever the text changes.
         def update_suggestions(*args):
+            suggest_after_id[0] = None
             typed = activity_var.get().lower()
             selected_attr = attr_var.get()
             selected_subs = self.data["subcategories"].get(selected_attr, [])
+            selected_subs_set = set(selected_subs)
             # Suggestions from the selected attribute are listed first. Suggestions from
             # other attributes are still searchable so typing "Meditation" can switch
             # the quest to Vitality automatically.
             other_subs = [
                 sub
-                for attr, subs in self.data["subcategories"].items()
-                if attr != selected_attr
-                for sub in subs
+                for sub in self.get_all_subcategories()
+                if sub not in selected_subs_set
             ]
             all_subs = dict.fromkeys(selected_subs + sorted(other_subs))
+            owner_map = self.get_subcategory_owner_map()
 
             suggestion_list.delete(0, tk.END)
 
@@ -1707,11 +1738,10 @@ class LifeXPApp:
             # Partial matches stay visible so the user can click one.
             exact_matches = [sub for sub in all_subs if sub.lower() == typed]
             if exact_matches:
-                for attr, subs in self.data["subcategories"].items():
-                    if exact_matches[0] in subs and attr_var.get() != attr:
-                        attr_var.set(attr)
-                        refresh_category_chips()
-                        break
+                owning_attr = owner_map.get(exact_matches[0])
+                if owning_attr and attr_var.get() != owning_attr:
+                    attr_var.set(owning_attr)
+                    refresh_category_chips()
                 suggestion_list.insert(tk.END, f"• {exact_matches[0]}")
                 hint_label.config(text="Exact match found.")
                 return
@@ -1722,15 +1752,19 @@ class LifeXPApp:
                 for hit in list(hits)[:80]:
                     # A dot means the suggestion belongs to the currently selected
                     # attribute. A chevron means choosing it will switch attributes.
-                    owning_attr = next(
-                        (attr for attr, subs in self.data["subcategories"].items() if hit in subs),
-                        selected_attr
-                    )
+                    owning_attr = owner_map.get(hit, selected_attr)
                     prefix = "•" if owning_attr == selected_attr else "›"
                     suggestion_list.insert(tk.END, f"{prefix} {hit}")
                 hint_label.config(text=f"{len(hits)} matching activities")
             else:
                 hint_label.config(text="No saved activity yet. This will become a new suggestion.")
+
+        suggest_after_id = [None]
+
+        def update_suggestions_debounced(*args):
+            if suggest_after_id[0] is not None:
+                dialog.after_cancel(suggest_after_id[0])
+            suggest_after_id[0] = dialog.after(120, update_suggestions)
 
         # When the user clicks a suggestion, this handler copies the text into the entry
         # and switches the selected attribute chip to the suggestion's saved category.
@@ -1739,18 +1773,17 @@ class LifeXPApp:
                 index = suggestion_list.curselection()[0]
                 selected_text = suggestion_list.get(index)[2:]
 
-                for attr, subs in self.data["subcategories"].items():
-                    if selected_text in subs:
-                        attr_var.set(attr)
-                        refresh_category_chips()
-                        break
+                owning_attr = self.get_subcategory_owner_map().get(selected_text)
+                if owning_attr:
+                    attr_var.set(owning_attr)
+                    refresh_category_chips()
 
                 activity_var.set(selected_text)
                 activity_entry.icursor(tk.END)
 
         # trace_add connects variable changes to code. bind connects listbox selection
         # events to code. Together they make the autocomplete interactive.
-        activity_var.trace_add("write", update_suggestions)
+        activity_var.trace_add("write", update_suggestions_debounced)
         suggestion_list.bind("<<ListboxSelect>>", on_suggestion_select)
         suggestion_list.bind("<Double-Button-1>", on_suggestion_select)
 
@@ -1894,6 +1927,7 @@ class LifeXPApp:
 
             if activity_name not in self.data["subcategories"][attr]:
                 self.data["subcategories"][attr].append(activity_name)
+                self._invalidate_subcategory_cache()
 
             self.data["tasks"].append({
                 "name": activity_name,
@@ -1906,14 +1940,23 @@ class LifeXPApp:
             # refresh the visible table so the UI matches the saved data.
             self.save_data()
             self.refresh_task_list()
+            if suggest_after_id[0] is not None:
+                dialog.after_cancel(suggest_after_id[0])
+                suggest_after_id[0] = None
             dialog.destroy()
 
             cx, cy = self.get_center()
             self.play_floating_text("✨ QUEST ADDED", self.accent_green, cx, cy)
 
+        def close_dialog():
+            if suggest_after_id[0] is not None:
+                dialog.after_cancel(suggest_after_id[0])
+                suggest_after_id[0] = None
+            dialog.destroy()
+
         action_row = tk.Frame(surface, bg=self.bg_dark)
         action_row.pack(fill=tk.X, pady=(18, 0))
-        ttk.Button(action_row, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT)
+        ttk.Button(action_row, text="Cancel", command=close_dialog).pack(side=tk.LEFT)
         ttk.Button(action_row, text="Accept Quest", style="QuestAccept.TButton", command=save).pack(side=tk.RIGHT)
 
         refresh_category_chips()
@@ -1923,7 +1966,8 @@ class LifeXPApp:
         dialog.grab_set()
         activity_entry.focus_set()
         dialog.bind("<Return>", lambda event: save())
-        dialog.bind("<Escape>", lambda event: dialog.destroy())
+        dialog.protocol("WM_DELETE_WINDOW", close_dialog)
+        dialog.bind("<Escape>", lambda event: close_dialog())
 
     def edit_task_dialog(self):
         """Allows editing a currently selected task."""
@@ -1966,6 +2010,7 @@ class LifeXPApp:
         self.data["tasks"][index]["xp"] = new_xp
         if new_name not in self.data["subcategories"][task["attribute"]]:
             self.data["subcategories"][task["attribute"]].append(new_name)
+            self._invalidate_subcategory_cache()
         self.save_data()
         self.refresh_task_list()
 
@@ -2059,14 +2104,26 @@ class LifeXPApp:
 
     def get_all_subcategories(self):
         """Returns every known activity name once, sorted for autocomplete."""
-        # dict.fromkeys keeps the first copy of each activity while removing duplicates.
-        # Sorting afterward gives the suggestion list a stable, predictable order.
-        all_subs = dict.fromkeys(
-            sub
-            for subs in self.data["subcategories"].values()
-            for sub in subs
-        )
-        return sorted(all_subs)
+        if self._subcategory_cache is None:
+            # dict.fromkeys keeps the first copy of each activity while removing
+            # duplicates. Sorting afterward gives the suggestion list a stable order.
+            all_subs = dict.fromkeys(
+                sub
+                for subs in self.data["subcategories"].values()
+                for sub in subs
+            )
+            self._subcategory_cache = sorted(all_subs)
+        return self._subcategory_cache
+
+    def get_subcategory_owner_map(self):
+        """Returns the first saved attribute for each known activity name."""
+        if self._subcategory_owner_cache is None:
+            owner_map = {}
+            for attr, subs in self.data["subcategories"].items():
+                for sub in subs:
+                    owner_map.setdefault(sub, attr)
+            self._subcategory_owner_cache = owner_map
+        return self._subcategory_owner_cache
 
     def gain_xp(self, attribute, amount):
         """Calculates new XP and returns any level-up moments to animate later."""
@@ -2080,6 +2137,8 @@ class LifeXPApp:
         while stat["xp"] >= xp_needed:
             stat["xp"] -= xp_needed
             stat["level"] += 1
+            if stat["level"] > self._max_stat_level:
+                self._max_stat_level = stat["level"]
 
             # Each level-up checks whether a milestone trophy was reached. Animation is
             # delayed by the completion flow so the XP popup gets the first beat.
@@ -2159,8 +2218,9 @@ class LifeXPApp:
         # Stats display refreshes both numbers and artwork. If new trophy tiers are now
         # needed, the trophy room is rebuilt before drawing progress.
         current_tiers = self.get_tiers()
-        if len(current_tiers) * len(self.attributes) != len(self.trophy_canvases):
+        if current_tiers is not self._last_rendered_tiers:
             self.rebuild_trophy_room()
+            current_tiers = self._last_rendered_tiers
 
         # Each attribute refreshes its label, progress bar, and every trophy icon tied
         # to that attribute.
@@ -2347,6 +2407,17 @@ class LifeXPApp:
         progress = max(0.0, min(progress, 1.0))
         return progress * progress * (3 - (2 * progress))
 
+    def _blend_color(self, c1, c2, ratio):
+        """Mathematically blends two hex colors together for fade effects."""
+        c1, c2 = c1.lstrip('#'), c2.lstrip('#')
+        r1, g1, b1 = int(c1[0:2], 16), int(c1[2:4], 16), int(c1[4:6], 16)
+        r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
+
+        r = int(r1 + (r2 - r1) * ratio)
+        g = int(g1 + (g2 - g1) * ratio)
+        b = int(b1 + (b2 - b1) * ratio)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
     def set_popup_alpha(self, popup, alpha):
         """Changes a popup's transparency when the operating system supports it."""
         # Some Tk builds do not support window alpha. The try block keeps animations
@@ -2430,7 +2501,7 @@ class LifeXPApp:
         # supports transparency, so the popup can feel lighter than a normal widget.
         root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
         root_h = self.root.winfo_height() if self.root.winfo_height() > 1 else 700
-        self.popup_sequence += 1
+        self.popup_sequence = (self.popup_sequence + 1) % 5
         stack_offset = ((self.popup_sequence - 1) % 5) * 34
         stack_direction = 1 if y < root_h * 0.3 else -1
         popup = tk.Toplevel(self.root)
@@ -2499,19 +2570,6 @@ class LifeXPApp:
 
             return clamped_x, clamped_y
 
-        # Color fading works by converting hex colors to RGB numbers, blending each
-        # channel, then converting the result back to a hex color.
-        def blend_color(c1, c2, ratio):
-            """Mathematically blends two hex colors together for fade effects."""
-            c1, c2 = c1.lstrip('#'), c2.lstrip('#')
-            r1, g1, b1 = int(c1[0:2], 16), int(c1[2:4], 16), int(c1[4:6], 16)
-            r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
-
-            r = int(r1 + (r2 - r1) * ratio)
-            g = int(g1 + (g2 - g1) * ratio)
-            b = int(b1 + (b2 - b1) * ratio)
-            return f"#{r:02x}{g:02x}{b:02x}"
-
         # Tkinter animations usually use after(): do one tiny update, then schedule the
         # next update a few milliseconds later. This popup uses three phases:
         # fade in quickly, hover while drifting upward, then fade out smoothly.
@@ -2567,7 +2625,7 @@ class LifeXPApp:
                     fade_ratio = (step - (total_steps - fade_steps)) / float(fade_steps)
                     eased_fade = self.ease_smoothstep(fade_ratio)
                     alpha = max_alpha * (1 - eased_fade)
-                    lbl.config(fg=blend_color(color, self.bg_dark, eased_fade))
+                    lbl.config(fg=self._blend_color(color, self.bg_dark, eased_fade))
                 else:
                     alpha = max_alpha
 
@@ -2607,15 +2665,6 @@ class LifeXPApp:
         half_w = max(18, source_box["width"] // 2)
         half_h = max(14, source_box["height"] // 2)
 
-        def blend_color(c1, c2, ratio):
-            c1, c2 = c1.lstrip('#'), c2.lstrip('#')
-            r1, g1, b1 = int(c1[0:2], 16), int(c1[2:4], 16), int(c1[4:6], 16)
-            r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
-            r = int(r1 + (r2 - r1) * ratio)
-            g = int(g1 + (g2 - g1) * ratio)
-            b = int(b1 + (b2 - b1) * ratio)
-            return f"#{r:02x}{g:02x}{b:02x}"
-
         for i in range(count):
             # Evenly stepping around the circle gives the burst a clear firework ring.
             # A small random offset keeps it from looking mathematically perfect.
@@ -2652,10 +2701,17 @@ class LifeXPApp:
                 "fade_tick": 0
             })
 
+        frame_count = [0]
+
         def animate():
+            nonlocal root_w, root_h
             active = False
-            root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
-            root_h = self.root.winfo_height() if self.root.winfo_height() > 1 else 700
+            frame_count[0] += 1
+            if frame_count[0] % 10 == 0:
+                measured_w = self.root.winfo_width()
+                measured_h = self.root.winfo_height()
+                root_w = measured_w if measured_w > 1 else 850
+                root_h = measured_h if measured_h > 1 else 700
 
             for particle in particles:
                 if particle["life"] > 0:
@@ -2680,7 +2736,7 @@ class LifeXPApp:
                     fade_start = int(particle["max_life"] * fade_start_ratio)
                     if age >= fade_start and particle["fade_tick"] % 3 == 0:
                         fade_ratio = (age - fade_start) / float(max(1, particle["max_life"] - fade_start))
-                        widget.configure(bg=blend_color(particle["color"], self.bg_dark, self.ease_smoothstep(fade_ratio)))
+                        widget.configure(bg=self._blend_color(particle["color"], self.bg_dark, self.ease_smoothstep(fade_ratio)))
                     particle["fade_tick"] += 1
 
                     widget.place(x=next_x, y=next_y)
@@ -2716,22 +2772,34 @@ class LifeXPApp:
 
             dx = random.randint(-12, 12)
             dy = random.randint(-12, 12)
-            particles.append({"widget": p, "dx": dx, "dy": dy, "life": random.randint(20, 40)})
+            particles.append({
+                "widget": p,
+                "x": start_x,
+                "y": start_y,
+                "dx": dx,
+                "dy": dy,
+                "life": random.randint(20, 40)
+            })
 
         # The particle animation moves living particles, applies gravity if requested,
         # destroys expired particles, and repeats while anything is still active.
+        frame_count = [0]
+
         def animate():
+            nonlocal root_w, root_h
             active = False
+            frame_count[0] += 1
+            if frame_count[0] % 10 == 0:
+                measured_w = self.root.winfo_width()
+                measured_h = self.root.winfo_height()
+                root_w = measured_w if measured_w > 1 else 850
+                root_h = measured_h if measured_h > 1 else 700
+
             for p in particles:
                 if p["life"] > 0:
                     w = p["widget"]
-                    curr_x = int(w.place_info().get('x', start_x))
-                    curr_y = int(w.place_info().get('y', start_y))
-
-                    root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
-                    root_h = self.root.winfo_height() if self.root.winfo_height() > 1 else 700
-                    next_x = curr_x + p["dx"]
-                    next_y = curr_y + p["dy"]
+                    next_x = p["x"] + p["dx"]
+                    next_y = p["y"] + p["dy"]
 
                     if next_x < 0 or next_x > root_w - 8:
                         p["dx"] = int(p["dx"] * -0.6)
@@ -2741,7 +2809,8 @@ class LifeXPApp:
                         p["dy"] = int(p["dy"] * -0.6)
                         next_y = max(0, min(next_y, root_h - 8))
 
-                    w.place(x=next_x, y=next_y)
+                    p["x"], p["y"] = next_x, next_y
+                    w.place(x=int(next_x), y=int(next_y))
                     p["life"] -= 1
 
                     if gravity:
