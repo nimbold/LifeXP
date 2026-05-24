@@ -30,12 +30,15 @@ ACCOUNT_LEVEL_CURVE_UPGRADE_MULTIPLIER = 0.02
 POPUP_FRAME_INTERVAL_SECONDS = 1 / 60
 XP_POPUP_STEPS = 125
 XP_POPUP_FADE_STEPS = 42
-LEVEL_UP_POPUP_STEPS = 420
-LEVEL_UP_POPUP_FADE_STEPS = 140
-RANK_UP_POPUP_STEPS = 420
-RANK_UP_POPUP_FADE_STEPS = 140
-TROPHY_POPUP_STEPS = 260
-TROPHY_POPUP_FADE_STEPS = 90
+LEVEL_UP_POPUP_STEPS = 138
+LEVEL_UP_POPUP_FADE_STEPS = 36
+RANK_UP_HEADER_FRAMES = 92
+TROPHY_POPUP_STEPS = 116
+TROPHY_POPUP_FADE_STEPS = 32
+XP_TO_REWARD_START_RATIO = 0.68
+REWARD_CHAIN_START_RATIO = 0.50
+RANK_UP_GLOW_COLOR = "#FFB020"
+MAX_ACTIVE_PARTICLES = 180
 
 # ==============================================================================
 # MAIN APP CLASS
@@ -73,6 +76,8 @@ class LifeXPApp:
         # Popup sequence gives simultaneous reward messages small vertical offsets so
         # they fade independently instead of covering the exact same screen position.
         self.popup_sequence = 0
+        self.rank_up_animation_token = 0
+        self.active_particle_widgets = []
         self.tab_hover_active = False
         self.tab_hover_token = 0
         self.tab_change_token = 0
@@ -568,7 +573,16 @@ class LifeXPApp:
             bg=self.bg_light,
             fg=self.text_color
         )
-        self.app_title_label.pack(anchor=tk.W)
+        self.app_title_label.pack(side=tk.LEFT, anchor=tk.W)
+        self.app_level_delta_label = tk.Label(
+            self.app_title_frame,
+            text="",
+            font=("{San Francisco}", 10, "bold"),
+            bg=self.bg_light,
+            fg=RANK_UP_GLOW_COLOR
+        )
+        self.app_level_delta_label.pack(side=tk.LEFT, anchor=tk.N, padx=(2, 0), pady=(0, 0))
+        self.app_level_delta_label.pack_forget()
 
         # The avatar is drawn on a Canvas because it needs custom shapes and an arc,
         # not just normal text or buttons.
@@ -640,7 +654,7 @@ class LifeXPApp:
         ]
         return shapes[tier_index] if tier_index < len(shapes) else shapes[-1]
 
-    def update_avatar(self, tier_index, color, progress):
+    def update_avatar(self, tier_index, color, progress, glow_progress=0.0, glow_color=None, ring_progress=None):
         """Draws the user title icon and a circular progress bar around it."""
         # Redrawing starts by clearing the canvas. Canvas drawings are not widgets;
         # they are items that stay until explicitly deleted.
@@ -650,14 +664,20 @@ class LifeXPApp:
         # edge of the canvas.
         pad = 4
         s = self.avatar_size
+        glow_progress = max(0.0, min(glow_progress, 1.0))
+        focus_color = glow_color or color
+        active_progress = progress if ring_progress is None else max(0.0, min(ring_progress, 1.0))
 
         # The avatar progress ring is two pieces: a full background oval and then a
         # colored arc that covers only the completed percentage.
-        self.avatar_canvas.create_oval(pad, pad, s-pad, s-pad, outline=self.bg_light, width=4)
+        track_color = self._blend_color(self.bg_light, self.text_color, 0.12)
+        self.avatar_canvas.create_oval(pad, pad, s-pad, s-pad, outline=track_color, width=4)
 
-        angle = int(360 * progress)
+        angle = int(360 * active_progress)
         if angle > 0:
-            self.avatar_canvas.create_arc(pad, pad, s-pad, s-pad, start=90, extent=-angle, outline=color, style=tk.ARC, width=4)
+            ring_width = 4 + int(4 * glow_progress)
+            ring_color = self._blend_color(color, focus_color, glow_progress)
+            self.avatar_canvas.create_arc(pad, pad, s-pad, s-pad, start=90, extent=-angle, outline=ring_color, style=tk.ARC, width=ring_width)
 
         # The title icon is scaled from grid coordinates into canvas pixel positions.
         # offset centers the icon after pixel_size is calculated.
@@ -673,7 +693,12 @@ class LifeXPApp:
                 if shape[y][x] == "1":
                     x1 = offset + (x * pixel_size)
                     y1 = offset + (y * pixel_size)
-                    self.avatar_canvas.create_rectangle(x1, y1, x1+pixel_size, y1+pixel_size, fill=color, outline="")
+                    icon_color = self._blend_color(color, focus_color, glow_progress * 0.70)
+                    self.avatar_canvas.create_rectangle(x1, y1, x1+pixel_size, y1+pixel_size, fill=icon_color, outline="")
+
+    def format_account_level_text(self, total_level, xp_into_level, xp_needed, total_xp):
+        """Returns the compact account level text shown in the header."""
+        return f"Total Lvl: {total_level}  |  {xp_into_level} / {xp_needed} XP  |  {total_xp} Total XP"
 
     def update_header(self, animate_rank=True):
         """Calculates total global XP and Level and updates the UI."""
@@ -691,18 +716,30 @@ class LifeXPApp:
         # with the matching title, color, and icon.
         title, color, tier_index = self.get_title_info(total_level)
         self.user_name_label.config(text=title, fg=color)
-        self.user_level_label.config(text=f"Total Lvl: {total_level}  |  {xp_into_level} / {xp_needed} XP  |  {total_xp} Total XP", fg=self.accent_green)
+        self.user_level_label.config(text=self.format_account_level_text(total_level, xp_into_level, xp_needed, total_xp), fg=self.accent_green)
 
         # This block plays a rank-up animation only after startup. current_total_level
         # starts at 0 so loading an existing save does not trigger old animations.
         rank_event = None
+        previous_level = self.current_total_level
         if self.current_total_level != 0 and total_level > self.current_total_level:
-            rank_event = {"title": title, "color": color}
+            rank_event = {
+                "title": title,
+                "color": color,
+                "previous_level": previous_level,
+                "total_level": total_level,
+                "xp_into_level": xp_into_level,
+                "xp_needed": xp_needed,
+                "total_xp": total_xp,
+                "tier_index": tier_index,
+                "progress": progress
+            }
             if animate_rank:
-                self.play_rank_up_animation(title, color)
+                self.play_rank_up_animation(rank_event)
 
         self.current_total_level = total_level
-        self.update_avatar(tier_index, color, progress)
+        if not (rank_event and animate_rank):
+            self.update_avatar(tier_index, color, progress)
         return rank_event
 
     def setup_ui(self):
@@ -1786,6 +1823,8 @@ class LifeXPApp:
             if hasattr(self, "app_title_frame"):
                 self.app_title_frame.configure(bg=self.bg_light)
                 self.app_title_label.configure(bg=self.bg_light, fg=self.text_color)
+                if hasattr(self, "app_level_delta_label"):
+                    self.app_level_delta_label.configure(bg=self.bg_light, fg=RANK_UP_GLOW_COLOR)
 
         if hasattr(self, "settings_button"):
             palette = self.get_settings_button_palette()
@@ -3330,27 +3369,32 @@ class LifeXPApp:
         # math tied to the actual animation length.
         return int((duration_steps + 1) * POPUP_FRAME_INTERVAL_SECONDS * 1000)
 
-    def popup_overlap_start_ms(self, duration_steps):
+    def popup_overlap_start_ms(self, duration_steps, start_ratio=REWARD_CHAIN_START_RATIO):
         """Returns the moment when the next reward popup should begin."""
-        # The next reward starts when the previous popup has finished 75 percent of its
-        # life. That lets the last 25 percent overlap with the next popup's entrance.
-        return int(self.popup_duration_ms(duration_steps) * 0.75)
+        # The next reward starts before the previous one fully fades. XP waits longer
+        # because it confirms the quest, while chained rewards hand off faster.
+        return int(self.popup_duration_ms(duration_steps) * start_ratio)
 
     def schedule_level_up_sequence(self, level_events, rank_event=None):
         """Plays completion rewards after the XP popup has had a short moment."""
         # Reward chains are read in order: XP gain first, then attribute level-ups,
-        # then account rank-ups. Each next popup starts at 75 percent of the previous
-        # popup's lifetime, while each popup's own duration stays fixed.
-        delay = self.popup_overlap_start_ms(XP_POPUP_STEPS)
+        # trophy unlocks, then account rank-ups. XP hands off after it is readable,
+        # while later reward popups overlap sooner so the chain stays energetic.
+        first_reward_delay = self.popup_overlap_start_ms(XP_POPUP_STEPS, XP_TO_REWARD_START_RATIO)
+        next_delay = first_reward_delay
         level_start_gap = self.popup_overlap_start_ms(LEVEL_UP_POPUP_STEPS)
-
-        for index, event in enumerate(level_events):
-            start_delay = delay + (index * level_start_gap)
-            self.root.after(start_delay, lambda e=event: self.play_level_up_animation(e))
+        trophy_start_gap = self.popup_overlap_start_ms(TROPHY_POPUP_STEPS)
 
         if rank_event:
-            rank_delay = delay + (len(level_events) * level_start_gap)
-            self.root.after(rank_delay, lambda: self.play_rank_up_animation(rank_event["title"], rank_event["color"]))
+            self.root.after(first_reward_delay, lambda event=rank_event: self.play_rank_up_animation(event))
+
+        for event in level_events:
+            self.root.after(next_delay, lambda e=event: self.play_level_up_animation(e))
+            next_delay += level_start_gap
+
+            if event["trophy"]:
+                self.root.after(next_delay, lambda trophy=event["trophy"]: self.play_trophy_animation_at_center(trophy))
+                next_delay += trophy_start_gap
 
     def play_level_up_animation(self, event):
         """Shows a delayed, extra-bright level-up celebration."""
@@ -3363,21 +3407,119 @@ class LifeXPApp:
         # still run in one shared animation loop so the larger burst does not tank FPS.
         self.play_firework_particles(self.attr_colors[attr], popup_box, count=112, rainbow=True, life_range=(76, 118), fade_start_ratio=0.52)
 
-        if event["trophy"]:
-            self.root.after(self.popup_overlap_start_ms(LEVEL_UP_POPUP_STEPS), lambda: self.play_trophy_animation(event["trophy"], cx, cy + 112))
+    def play_rank_up_animation(self, rank_event):
+        """Animates account rank-ups directly on the header avatar and text."""
+        self.rank_up_animation_token += 1
+        token = self.rank_up_animation_token
+        title = rank_event["title"]
+        color = rank_event["color"]
+        previous_level = rank_event["previous_level"]
+        total_level = rank_event["total_level"]
+        xp_into_level = rank_event["xp_into_level"]
+        xp_needed = rank_event["xp_needed"]
+        total_xp = rank_event["total_xp"]
+        tier_index = rank_event["tier_index"]
+        progress = rank_event["progress"]
+        frames = RANK_UP_HEADER_FRAMES
+        level_span = max(1, total_level - previous_level)
+        focus_color = RANK_UP_GLOW_COLOR
+        self.app_level_delta_label.config(text=f"+{level_span}", fg=focus_color)
+        self.app_level_delta_label.pack(side=tk.LEFT, anchor=tk.N, padx=(2, 0), pady=(0, 0))
+        started_at = time.perf_counter()
 
-    def play_rank_up_animation(self, title, color):
-        """Celebrates account rank-ups with a wide rainbow burst."""
-        x_pos = self.root.winfo_width() - 80 if self.root.winfo_width() > 1 else 750
-        popup_box = self.play_floating_text(f"RANK UP: {title.upper()}!", color, x_pos, 80, size=28, duration_steps=RANK_UP_POPUP_STEPS, fade_steps=RANK_UP_POPUP_FADE_STEPS, trailing_icon=self.create_level_up_arrow_icon("#FFD700"))
-        # Rank-up is the biggest reward, so it gets the largest and slowest fading
-        # burst. The parameters keep that intensity without launching extra loops.
-        self.play_firework_particles(color, popup_box, count=124, rainbow=True, life_range=(82, 128), fade_start_ratio=0.56)
+        def animate(frame=0):
+            if token != self.rank_up_animation_token:
+                return
+
+            if frame <= frames:
+                phase = frame / float(frames)
+                rise = self.ease_out_cubic(min(phase * 1.35, 1.0))
+                ring_load = self.ease_out_cubic(min(phase / 0.58, 1.0))
+                hold_progress = self.ease_smoothstep(max(0.0, (phase - 0.58) / 0.42))
+                icon_glow = math.sin(hold_progress * math.pi)
+                ring_glow = 1 - (hold_progress * 0.55)
+                title_glow = max(ring_load * 0.35, icon_glow)
+                displayed_level = min(total_level, previous_level + int(round(level_span * rise)))
+
+                self.app_title_label.config(
+                    fg=self._blend_color(self.text_color, focus_color, title_glow),
+                    font=("{San Francisco}", 18 + int(3 * title_glow), "bold")
+                )
+                self.app_level_delta_label.config(
+                    fg=self._blend_color(self.bg_light, focus_color, title_glow)
+                )
+                self.user_name_label.config(
+                    text=title,
+                    fg=self._blend_color(color, focus_color, icon_glow * 0.86)
+                )
+                self.user_level_label.config(
+                    text=self.format_account_level_text(displayed_level, xp_into_level, xp_needed, total_xp),
+                    fg=self._blend_color(self.accent_green, focus_color, max(ring_load * 0.55, icon_glow * 0.92)),
+                    font=("{San Francisco}", 11 + int(2 * icon_glow), "bold" if icon_glow > 0.28 else "normal")
+                )
+                self.update_avatar(
+                    tier_index,
+                    color,
+                    progress,
+                    glow_progress=max(ring_glow, icon_glow),
+                    glow_color=focus_color,
+                    ring_progress=ring_load
+                )
+
+                target_time = started_at + ((frame + 1) * POPUP_FRAME_INTERVAL_SECONDS)
+                next_delay = max(1, int((target_time - time.perf_counter()) * 1000))
+                self.root.after(next_delay, animate, frame + 1)
+                return
+
+            self.user_name_label.config(text=title, fg=color)
+            self.user_level_label.config(
+                text=self.format_account_level_text(total_level, xp_into_level, xp_needed, total_xp),
+                fg=self.accent_green,
+                font=("{San Francisco}", 11)
+            )
+            self.app_title_label.config(
+                fg=self.text_color,
+                font=("{San Francisco}", 18, "bold")
+            )
+            self.app_level_delta_label.pack_forget()
+            self.update_avatar(tier_index, color, progress)
+
+        animate()
+
+    def play_trophy_animation_at_center(self, trophy_name):
+        """Positions trophy rewards near the center reward stack."""
+        cx, cy = self.get_center()
+        self.play_trophy_animation(trophy_name, cx, cy + 112)
 
     def play_trophy_animation(self, trophy_name, x, y):
         """Shows a trophy reward after the level-up burst."""
-        self.play_floating_text(f"🏆 {trophy_name.upper()} EARNED! 🏆", "#EBCB8B", x, y, size=25, duration_steps=TROPHY_POPUP_STEPS, fade_steps=TROPHY_POPUP_FADE_STEPS)
-        self.play_particles("#EBCB8B", x, y, count=50, gravity=True, rainbow=True)
+        popup_box = self.play_floating_text(f"🏆 {trophy_name.upper()} EARNED! 🏆", "#EBCB8B", x, y, size=25, duration_steps=TROPHY_POPUP_STEPS, fade_steps=TROPHY_POPUP_FADE_STEPS)
+        # Trophy rewards use the same box-anchored particle engine as level-ups so
+        # their sparks share one steadier loop instead of the older point burst.
+        self.play_firework_particles(
+            "#EBCB8B",
+            popup_box,
+            count=64,
+            palette=["#EBCB8B", "#FFD166", "#F59E0B", "#FFF4A3", "#ECEFF4"],
+            physics=True,
+            life_range=(54, 86),
+            fade_start_ratio=0.45
+        )
+
+    def register_particle_widget(self, widget):
+        """Tracks live particle widgets and caps burst load during rapid rewards."""
+        self.active_particle_widgets.append(widget)
+        while len(self.active_particle_widgets) > MAX_ACTIVE_PARTICLES:
+            old_widget = self.active_particle_widgets.pop(0)
+            if old_widget.winfo_exists():
+                old_widget.destroy()
+
+    def destroy_particle_widget(self, widget):
+        """Destroys a particle widget and removes it from the live budget."""
+        if widget in self.active_particle_widgets:
+            self.active_particle_widgets.remove(widget)
+        if widget.winfo_exists():
+            widget.destroy()
 
     def play_floating_text(self, text, color, x, y, size=18, shake=False, duration_steps=70, fade_steps=20, trailing_icon=None):
         """Creates retro text that pops, floats upwards, and fades out."""
@@ -3571,6 +3713,7 @@ class LifeXPApp:
 
             particle = tk.Frame(self.root, bg=p_color, width=size, height=size)
             particle.place(x=start_x, y=start_y)
+            self.register_particle_widget(particle)
 
             particles.append({
                 "widget": particle,
@@ -3600,6 +3743,9 @@ class LifeXPApp:
             for particle in particles:
                 if particle["life"] > 0:
                     widget = particle["widget"]
+                    if not widget.winfo_exists():
+                        particle["life"] = -1
+                        continue
 
                     # Drag slows the burst over time. A tiny gravity pull makes late
                     # sparks drift down like fireworks instead of freezing in place.
@@ -3627,7 +3773,7 @@ class LifeXPApp:
                     particle["life"] -= 1
                     active = True
                 elif particle["life"] == 0:
-                    particle["widget"].destroy()
+                    self.destroy_particle_widget(particle["widget"])
                     particle["life"] -= 1
 
             if active:
@@ -3653,6 +3799,7 @@ class LifeXPApp:
             p_color = random.choice(rainbow_colors) if rainbow else color
             p = tk.Frame(self.root, bg=p_color, width=8, height=8)
             p.place(x=start_x, y=start_y)
+            self.register_particle_widget(p)
 
             dx = random.randint(-12, 12)
             dy = random.randint(-12, 12)
@@ -3682,6 +3829,9 @@ class LifeXPApp:
             for p in particles:
                 if p["life"] > 0:
                     w = p["widget"]
+                    if not w.winfo_exists():
+                        p["life"] = -1
+                        continue
                     next_x = p["x"] + p["dx"]
                     next_y = p["y"] + p["dy"]
 
@@ -3702,7 +3852,7 @@ class LifeXPApp:
 
                     active = True
                 elif p["life"] == 0:
-                    p["widget"].destroy()
+                    self.destroy_particle_widget(p["widget"])
                     p["life"] -= 1
 
             if active:
