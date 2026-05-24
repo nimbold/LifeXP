@@ -86,6 +86,7 @@ class LifeXPApp:
         self.account_total_xp_before_level_cache = {1: 0}
         self._last_rendered_tiers = None
         self._max_stat_level = 1
+        self.current_summary_timeframe = "daily"
 
         # Visual configuration lives near the top so the rest of the app can reuse it.
         # Each attribute gets one color, which is later used in bars, graphs, and art.
@@ -446,15 +447,28 @@ class LifeXPApp:
         # ttk widgets mostly follow ttk.Style, but tk.Frame/tk.Label/tk.Canvas/tk.Text
         # keep literal colors. This helper updates those literal colors in place so a
         # theme change does not need to destroy and rebuild the whole interface.
-        for option in ("bg", "fg", "background", "foreground", "insertbackground"):
+        # Some colors are reused for different jobs. For example, a dark background can
+        # also be the best text color on a light card. Separate maps stop a background
+        # from accidentally being changed into a text color during a theme switch.
+        bg_options = {"bg", "background", "selectbackground", "highlightbackground"}
+        fg_options = {"fg", "foreground", "insertbackground", "selectforeground"}
+        if "background" in color_map or "foreground" in color_map:
+            background_map = color_map.get("background", {})
+            foreground_map = color_map.get("foreground", {})
+        else:
+            background_map = color_map
+            foreground_map = color_map
+
+        for option in bg_options | fg_options:
             try:
                 current = widget.cget(option)
             except tk.TclError:
                 continue
             current = str(current)
-            if current in color_map:
+            option_map = background_map if option in bg_options else foreground_map
+            if current in option_map:
                 try:
-                    widget.configure(**{option: color_map[current]})
+                    widget.configure(**{option: option_map[current]})
                 except tk.TclError:
                     pass
 
@@ -1622,16 +1636,25 @@ class LifeXPApp:
         self.current_theme_name = theme_name
         self.apply_modern_theme()
 
-        color_map = {
+        background_color_map = {
             previous_bg_dark: self.bg_dark,
             previous_bg_light: self.bg_light,
             previous_accent: self.accent_green,
+        }
+        foreground_color_map = {
             previous_text: self.text_color,
             previous_dark_surface_text: self.dark_surface_text_color,
-            previous_card_text: self.card_text_color
+            previous_card_text: self.card_text_color,
+            previous_accent: self.accent_green
         }
         for attr, previous_color in previous_attr_colors.items():
-            color_map[previous_color] = self.attr_colors[attr]
+            background_color_map[previous_color] = self.attr_colors[attr]
+            foreground_color_map[previous_color] = self.attr_colors[attr]
+
+        color_map = {
+            "background": background_color_map,
+            "foreground": foreground_color_map
+        }
 
         # Update the saved user preferences so the theme persists on next launch.
         if hasattr(self, "data"):
@@ -1720,7 +1743,7 @@ class LifeXPApp:
             self.update_stats_display()
 
         if hasattr(self, "summary_cards"):
-            self.show_summary("daily")
+            self.show_summary(self.current_summary_timeframe)
 
     # ==============================================================================
     # GROUP B - DATA MANAGEMENT / LIBRARIANS
@@ -1741,6 +1764,64 @@ class LifeXPApp:
         self._tiers_cache = None
         self._tiers_cache_expanded = None
         self._last_rendered_tiers = None
+
+    def normalize_user_info(self, user_info, default_user_info):
+        """Returns safe account metadata with every key the header expects."""
+        # Saved JSON can be edited by hand or come from an older app version. This
+        # method fills missing account fields so UI code can read them without a
+        # KeyError during startup.
+        normalized = default_user_info.copy()
+        if isinstance(user_info, dict):
+            name = str(user_info.get("name", normalized["name"])).strip()
+            normalized["name"] = name or default_user_info["name"]
+            normalized["theme"] = str(user_info.get("theme", normalized["theme"])).strip() or default_user_info["theme"]
+            try:
+                normalized["avatar_seed"] = int(user_info.get("avatar_seed", normalized["avatar_seed"]))
+            except (TypeError, ValueError):
+                normalized["avatar_seed"] = default_user_info["avatar_seed"]
+        return normalized
+
+    def normalize_subcategories(self, subcategories, default_subcategories):
+        """Returns clean autocomplete suggestions for every current attribute."""
+        # Subcategories are just saved activity names. The app only needs current
+        # attributes, so this removes malformed entries, trims spaces, deduplicates
+        # names, and then adds any default beginner suggestions that are missing.
+        retired_subcategories = {
+            "Weightlifting",
+            "Pushups / Core",
+            "Stretching Routine",
+            "Yoga Break",
+            "Workout"
+        }
+        source = subcategories if isinstance(subcategories, dict) else {}
+        normalized = {}
+
+        for attr in self.attributes:
+            seen = set()
+            cleaned = []
+            raw_items = source.get(attr, [])
+            if not isinstance(raw_items, list):
+                raw_items = []
+
+            for item in raw_items:
+                if not isinstance(item, str):
+                    continue
+                name = item.strip()
+                key = name.lower()
+                if not name or name in retired_subcategories or key in seen:
+                    continue
+                cleaned.append(name)
+                seen.add(key)
+
+            for default_name in default_subcategories[attr]:
+                key = default_name.lower()
+                if key not in seen:
+                    cleaned.append(default_name)
+                    seen.add(key)
+
+            normalized[attr] = cleaned
+
+        return normalized
 
     def load_data(self):
         """Reads saved data. Includes complex migrations to prevent crashes."""
@@ -1899,12 +1980,13 @@ class LifeXPApp:
                     if isinstance(data.get("user_info"), dict) and data["user_info"].get("name") == "Ashen One":
                         data["user_info"]["name"] = "Hero"
 
-                    # This loop patches missing top-level sections into older or partial save files.
-                    # It prevents simple KeyError crashes later in the UI.
+                    # This loop patches missing top-level sections into older or partial
+                    # save files. It prevents simple KeyError crashes later in the UI.
                     for key in default_data:
                         if key not in data:
                             data[key] = default_data[key]
 
+                    data["user_info"] = self.normalize_user_info(data.get("user_info"), default_data["user_info"])
                     data["stats"] = self.normalize_stats(data.get("stats"), default_data["stats"])
                     data["tasks"] = self.normalize_tasks(data.get("tasks"))
                     data["history"] = self.normalize_history(data.get("history"))
@@ -1912,37 +1994,10 @@ class LifeXPApp:
                         trophy for trophy in data.get("trophies", [])
                         if isinstance(trophy, str)
                     ] if isinstance(data.get("trophies"), list) else []
-
-                    # Subcategories power the task-name autocomplete. This block removes old
-                    # narrow suggestions and injects the broader daily-life catalogue.
-                    if "subcategories" in data:
-                        retired_subcategories = [
-                            "Weightlifting",
-                            "Pushups / Core",
-                            "Stretching Routine",
-                            "Yoga Break",
-                            "Workout"
-                        ]
-                        for attr in data["subcategories"]:
-                            if not isinstance(data["subcategories"][attr], list):
-                                data["subcategories"][attr] = []
-                            data["subcategories"][attr] = [
-                                str(sub).strip() for sub in data["subcategories"][attr]
-                                if isinstance(sub, str) and sub.strip() and sub not in retired_subcategories
-                            ]
-
-                        for attr, new_subs in default_data["subcategories"].items():
-                            if attr not in data["subcategories"]:
-                                data["subcategories"][attr] = new_subs
-                            else:
-                                for sub in new_subs:
-                                    if sub not in data["subcategories"][attr]:
-                                        data["subcategories"][attr].append(sub)
-
-                    if not isinstance(data.get("user_info"), dict):
-                        data["user_info"] = default_data["user_info"]
-                    else:
-                        data["user_info"].setdefault("theme", self.current_theme_name)
+                    data["subcategories"] = self.normalize_subcategories(
+                        data.get("subcategories"),
+                        default_data["subcategories"]
+                    )
 
                     return data
 
@@ -2038,13 +2093,40 @@ class LifeXPApp:
     # ==============================================================================
     def refresh_task_list(self):
         """Clears the visual list and redraws it based on current memory."""
-        # Refreshing the task table is done by clearing every visible row, then inserting
-        # one row for each task currently stored in self.data.
-        for item in self.task_tree.get_children():
-            self.task_tree.delete(item)
+        # Refreshing the task table is done by clearing visible rows, then inserting
+        # one row for each task currently stored in self.data. Passing all existing
+        # row IDs into delete() at once is faster than deleting one row at a time.
+        existing_rows = self.task_tree.get_children()
+        if existing_rows:
+            self.task_tree.delete(*existing_rows)
 
         for i, task in enumerate(self.data["tasks"]):
             self.task_tree.insert("", tk.END, iid=i, values=(task["name"], task["attribute"], f"{task['xp']} XP"))
+
+    def get_selected_task_index(self, empty_message=None):
+        """Returns the selected quest index, or None if the selection is unusable."""
+        # Treeview selections are stored as string item IDs. Because the list can be
+        # refreshed after edits, this helper checks both conversion and current bounds
+        # before task actions touch self.data["tasks"].
+        selected = self.task_tree.selection()
+        if not selected:
+            if empty_message:
+                messagebox.showinfo("Notice", empty_message, parent=self.root)
+            return None
+
+        try:
+            index = int(selected[0])
+        except (TypeError, ValueError):
+            self.refresh_task_list()
+            return None
+
+        if not 0 <= index < len(self.data["tasks"]):
+            self.refresh_task_list()
+            if empty_message:
+                messagebox.showinfo("Notice", "That quest is no longer available. Please select it again.", parent=self.root)
+            return None
+
+        return index
 
     def add_task_dialog(self):
         """Pops up a window to create a new task. Features global autocomplete!"""
@@ -2187,19 +2269,19 @@ class LifeXPApp:
         # This one rebuilds autocomplete suggestions whenever the text changes.
         def update_suggestions(*args):
             suggest_after_id[0] = None
-            typed = activity_var.get().lower()
+            typed = activity_var.get().strip().lower()
             selected_attr = attr_var.get()
             selected_subs = self.data["subcategories"].get(selected_attr, [])
-            selected_subs_set = set(selected_subs)
+            selected_subs_set = {sub.lower() for sub in selected_subs}
             # Suggestions from the selected attribute are listed first. Suggestions from
             # other attributes are still searchable so typing "Meditation" can switch
             # the quest to Vitality automatically.
             other_subs = [
                 sub
                 for sub in self.get_all_subcategories()
-                if sub not in selected_subs_set
+                if sub.lower() not in selected_subs_set
             ]
-            all_subs = dict.fromkeys(selected_subs + sorted(other_subs))
+            all_subs = dict.fromkeys(selected_subs + other_subs)
             owner_map = self.get_subcategory_owner_map()
 
             suggestion_list.delete(0, tk.END)
@@ -2299,15 +2381,16 @@ class LifeXPApp:
         )
         xp_label.grid(row=2, column=0, sticky="w", padx=16, pady=(0, 14))
 
-        # This helper updates the difficulty label and color as the slider moves. The
-        # RGB math blends from light to the accent green.
+        # This helper updates the difficulty label and color as the slider moves.
+        # The RGB math blends from white to the current theme's accent color.
         def difficulty_color(v):
-            # Difficulty 1 starts almost white, while difficulty 10 lands on the theme's
-            # green-ish reward color. The intermediate values are simple RGB blends.
+            # Difficulty 1 starts almost white, while difficulty 10 lands on the active
+            # reward/accent color. The intermediate values are simple RGB blends.
             ratio = (v - 1) / 9.0
-            r = int(255 + (163 - 255) * ratio)
-            g = int(255 + (190 - 255) * ratio)
-            b = int(255 + (140 - 255) * ratio)
+            target_r, target_g, target_b = self._hex_to_rgb(self.accent_green)
+            r = int(255 + (target_r - 255) * ratio)
+            g = int(255 + (target_g - 255) * ratio)
+            b = int(255 + (target_b - 255) * ratio)
             return f'#{r:02x}{g:02x}{b:02x}'
 
         def draw_difficulty_slider():
@@ -2388,14 +2471,17 @@ class LifeXPApp:
         # autocomplete, appends the task, saves data, refreshes the table, and closes.
         def save():
             activity_name = activity_var.get().strip()
-            attr = attr_var.get()
+            # If the typed activity already exists under another attribute, use that
+            # saved owner even if the debounce timer has not fired yet.
+            attr = self.get_known_activity_owner(activity_name) or attr_var.get()
             xp = difficulty_var.get() * 10
 
             if not activity_name:
                 messagebox.showerror("Hold up, Hero!", "Your quest needs an activity name.", parent=dialog)
                 return
 
-            if activity_name not in self.data["subcategories"][attr]:
+            existing_names = {name.lower() for name in self.data["subcategories"][attr]}
+            if activity_name.lower() not in existing_names:
                 self.data["subcategories"][attr].append(activity_name)
                 self._invalidate_subcategory_cache()
 
@@ -2443,43 +2529,44 @@ class LifeXPApp:
         """Allows editing a currently selected task."""
         # Most task actions begin by reading the selected row. If nothing is selected,
         # the method exits early or shows a helpful message.
-        selected = self.task_tree.selection()
-        if not selected:
-            messagebox.showinfo("Notice", "Select a quest from the log to edit it.")
+        index = self.get_selected_task_index("Select a quest from the log to edit it.")
+        if index is None:
             return
 
-        index = int(selected[0])
         task = self.data["tasks"][index]
 
         # Editing uses simple popup dialogs instead of a custom window. The current task
         # values are passed in as initial values for the user to modify.
-        new_name = simpledialog.askstring("Edit Quest", "New Quest Name:", initialvalue=task["name"])
+        new_name = simpledialog.askstring("Edit Quest", "New Quest Name:", initialvalue=task["name"], parent=self.root)
         if new_name is None:
             return
 
         try:
-            new_xp_str = simpledialog.askstring("Edit Quest", "New XP Reward:", initialvalue=str(task["xp"]))
+            new_xp_str = simpledialog.askstring("Edit Quest", "New XP Reward:", initialvalue=str(task["xp"]), parent=self.root)
             if new_xp_str is None:
                 return
             new_xp = int(new_xp_str)
         except ValueError:
-            messagebox.showerror("Error", "XP must be a numeric value.")
+            messagebox.showerror("Error", "XP must be a numeric value.", parent=self.root)
             return
 
         if new_xp < 1:
-            messagebox.showerror("Error", "XP must be at least 1.")
+            messagebox.showerror("Error", "XP must be at least 1.", parent=self.root)
             return
 
         new_name = new_name.strip()
         if not new_name:
-            messagebox.showerror("Error", "Quest name cannot be blank.")
+            messagebox.showerror("Error", "Quest name cannot be blank.", parent=self.root)
             return
 
+        task_attr = self.get_known_activity_owner(new_name) or task["attribute"]
+        self.data["tasks"][index]["attribute"] = task_attr
         self.data["tasks"][index]["name"] = new_name
         self.data["tasks"][index]["subcategory"] = new_name
         self.data["tasks"][index]["xp"] = new_xp
-        if new_name not in self.data["subcategories"][task["attribute"]]:
-            self.data["subcategories"][task["attribute"]].append(new_name)
+        existing_names = {name.lower() for name in self.data["subcategories"][task_attr]}
+        if new_name.lower() not in existing_names:
+            self.data["subcategories"][task_attr].append(new_name)
             self._invalidate_subcategory_cache()
         self.save_data()
         self.refresh_task_list()
@@ -2489,14 +2576,13 @@ class LifeXPApp:
 
     def delete_task(self):
         """Removes a task from memory without giving XP."""
-        selected = self.task_tree.selection()
-        if not selected:
+        index = self.get_selected_task_index()
+        if index is None:
             return
 
         # Deleting asks for confirmation because it removes the quest without XP. After
         # deletion, the saved file and visible table are both refreshed.
-        if messagebox.askyesno("Abandon Quest?", "Are you sure you want to abandon this quest? No XP will be awarded."):
-            index = int(selected[0])
+        if messagebox.askyesno("Abandon Quest?", "Are you sure you want to abandon this quest? No XP will be awarded.", parent=self.root):
             del self.data["tasks"][index]
             self.save_data()
             self.refresh_task_list()
@@ -2507,12 +2593,9 @@ class LifeXPApp:
 
     def complete_task(self):
         """The main gameplay loop: Finish task -> Grant XP -> Save History -> Redraw."""
-        selected = self.task_tree.selection()
-        if not selected:
-            messagebox.showinfo("Notice", "Select a quest to complete it.")
+        index = self.get_selected_task_index("Select a quest to complete it.")
+        if index is None:
             return
-
-        index = int(selected[0])
 
         # Completing a quest removes it from active tasks, then reads its attribute and
         # XP reward so the character can gain progress.
@@ -2611,37 +2694,87 @@ class LifeXPApp:
 
     def get_account_level_progress(self, total_xp):
         """Returns total level, XP inside that level, and XP needed for the next one."""
-        level = 1
-        xp_before_level = 0
+        # Account progress is shown often, so avoid walking from level 1 every time.
+        # First find an upper bound by doubling, then binary-search the cached totals.
+        try:
+            total_xp = max(0, int(total_xp))
+        except (TypeError, ValueError):
+            total_xp = 0
+        low = 1
+        high = 2
+        while self.get_total_account_xp_before_level(high) <= total_xp:
+            high *= 2
+
+        while low < high:
+            mid = (low + high + 1) // 2
+            if self.get_total_account_xp_before_level(mid) <= total_xp:
+                low = mid
+            else:
+                high = mid - 1
+
+        level = low
+        xp_before_level = self.get_total_account_xp_before_level(level)
         xp_needed = self.get_account_xp_needed(level)
-
-        while total_xp >= xp_before_level + xp_needed:
-            xp_before_level += xp_needed
-            level += 1
-            xp_needed = self.get_account_xp_needed(level)
-
         return level, total_xp - xp_before_level, xp_needed
 
     def get_all_subcategories(self):
         """Returns every known activity name once, sorted for autocomplete."""
         if self._subcategory_cache is None:
-            # dict.fromkeys keeps the first copy of each activity while removing
-            # duplicates. Sorting afterward gives the suggestion list a stable order.
-            all_subs = dict.fromkeys(
-                sub
-                for subs in self.data["subcategories"].values()
-                for sub in subs
-            )
-            self._subcategory_cache = sorted(all_subs)
+            # The save file is normalized on load, but this cache is still defensive
+            # because suggestions can be added while the app is running. Case-folded
+            # keys remove "Reading" / "reading" duplicates without changing display
+            # capitalization.
+            seen = set()
+            all_subs = []
+            for subs in self.data["subcategories"].values():
+                if not isinstance(subs, list):
+                    continue
+                for sub in subs:
+                    if not isinstance(sub, str):
+                        continue
+                    name = sub.strip()
+                    key = name.lower()
+                    if name and key not in seen:
+                        all_subs.append(name)
+                        seen.add(key)
+
+            # Sorting once here is cheaper than sorting every time the user types in
+            # the autocomplete field.
+            self._subcategory_cache = sorted(all_subs, key=str.lower)
         return self._subcategory_cache
+
+    def get_known_activity_owner(self, activity_name):
+        """Returns the saved attribute for an activity name, ignoring capitalization."""
+        # Exact lookup is fast for normal suggestion clicks. The lowercase fallback
+        # protects users who type a known activity with different capitalization.
+        owner_map = self.get_subcategory_owner_map()
+        if activity_name in owner_map:
+            return owner_map[activity_name]
+
+        lowered = activity_name.lower()
+        for saved_name, attr in owner_map.items():
+            if saved_name.lower() == lowered:
+                return attr
+        return None
 
     def get_subcategory_owner_map(self):
         """Returns the first saved attribute for each known activity name."""
         if self._subcategory_owner_cache is None:
             owner_map = {}
-            for attr, subs in self.data["subcategories"].items():
+            seen_lower = set()
+            # Iterating in self.attributes order makes ownership predictable if the
+            # same activity appears under multiple attributes.
+            for attr in self.attributes:
+                subs = self.data["subcategories"].get(attr, [])
+                if not isinstance(subs, list):
+                    continue
                 for sub in subs:
-                    owner_map.setdefault(sub, attr)
+                    if isinstance(sub, str) and sub.strip():
+                        name = sub.strip()
+                        lowered = name.lower()
+                        if lowered not in seen_lower:
+                            owner_map[name] = attr
+                            seen_lower.add(lowered)
             self._subcategory_owner_cache = owner_map
         return self._subcategory_owner_cache
 
@@ -2889,6 +3022,10 @@ class LifeXPApp:
         """Reads the history memory and filters it by date to generate a report."""
         # The timeframe string controls the report window: today, the last 7 days, or
         # the last 30 days. The result is a target_date cutoff.
+        if timeframe not in {"daily", "weekly", "monthly"}:
+            timeframe = "daily"
+        self.current_summary_timeframe = timeframe
+
         now = datetime.now()
         target_date = now
         title = ""
@@ -2918,7 +3055,10 @@ class LifeXPApp:
 
             if record_date >= target_date:
                 completed_tasks += 1
-                xp = record.get("xp", 0)
+                try:
+                    xp = max(0, int(record.get("xp", 0)))
+                except (TypeError, ValueError):
+                    xp = 0
                 total_xp += xp
                 attr = record.get("attribute")
                 activity = record.get("subcategory") or record.get("name", "General")
