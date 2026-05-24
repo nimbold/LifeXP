@@ -41,12 +41,11 @@ python3 main.py
 
 ```text
 main.py              Main app code
-lifexp_data.json     Local save file
 README.md            Project overview
 BEGINNER_GUIDE.md    Short guide for learning the code
 ```
 
-`lifexp_data.json` changes while you use the app. It stores your tasks, levels, history, trophies, theme, and custom activity names.
+LifeXP creates `lifexp_data.json` automatically when you use the app. It stores your tasks, levels, history, trophies, theme, and custom activity names. The file is ignored by Git because it is personal local progress, not source code.
 
 ## Learning Focus
 
