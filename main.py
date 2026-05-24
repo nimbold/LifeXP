@@ -22,8 +22,11 @@ import time
 # timing knobs so later balancing changes do not require hunting through raw numbers.
 APP_VERSION = "1.01"
 BASE_XP_NEEDED = 100
-XP_GROWTH_RATE = 1.25
-ACCOUNT_XP_PER_LEVEL = 500
+ACCOUNT_BASE_XP_NEEDED = 500
+ACCOUNT_LEVEL_CURVE_OFFSET = 81
+ACCOUNT_LEVEL_CURVE_FLOOR = 92
+ACCOUNT_LEVEL_CURVE_BASE_MULTIPLIER = 0.1
+ACCOUNT_LEVEL_CURVE_UPGRADE_MULTIPLIER = 0.02
 POPUP_FRAME_INTERVAL_SECONDS = 1 / 60
 XP_POPUP_STEPS = 125
 XP_POPUP_FADE_STEPS = 42
@@ -79,77 +82,14 @@ class LifeXPApp:
         self._subcategory_owner_cache = None
         self._tiers_cache = None
         self._tiers_cache_expanded = None
+        self.account_xp_needed_cache = {}
+        self.account_total_xp_before_level_cache = {1: 0}
         self._last_rendered_tiers = None
         self._max_stat_level = 1
 
         # Visual configuration lives near the top so the rest of the app can reuse it.
         # Each attribute gets one color, which is later used in bars, graphs, and art.
         self.attr_colors = self.themes[self.current_theme_name]["attr_colors"].copy()
-
-        # Pixel art is represented as strings. A "1" means draw a square; a "0" means
-        # leave that position empty. This is data, not drawing code yet.
-        self.pixel_shapes = {
-            "Strength": [
-                "0000110000",
-                "0001111000",
-                "0000110000",
-                "0000110000",
-                "0000110000",
-                "0000110000",
-                "0000110000",
-                "0111111110",
-                "0000110000",
-                "0000110000"
-            ],
-            "Agility": [
-                "1000000000",
-                "1100000000",
-                "1110000000",
-                "1111000000",
-                "0111100000",
-                "0011110000",
-                "0001111000",
-                "0000111100",
-                "0000011110",
-                "0000001111"
-            ],
-            "Intelligence": [
-                "0000000000",
-                "0011111100",
-                "0100000010",
-                "1111111111",
-                "1111111111",
-                "1111111111",
-                "1111111111",
-                "1111111111",
-                "0100000010",
-                "0011111100"
-            ],
-            "Charisma": [
-                "0000000000",
-                "1000110001",
-                "1100110011",
-                "1110110111",
-                "1111111111",
-                "1111111111",
-                "0111111110",
-                "0111111110",
-                "0111111110",
-                "0000000000"
-            ],
-            "Vitality": [
-                "0000000000",
-                "0011001100",
-                "0111111110",
-                "1111111111",
-                "1111111111",
-                "0111111110",
-                "0011111100",
-                "0001111000",
-                "0000110000",
-                "0000000000"
-            ]
-        }
 
         # Boot order matters: styles must exist before widgets are built, and data must
         # load before labels can show the current name, XP, tasks, and levels.
@@ -725,16 +665,17 @@ class LifeXPApp:
         # the current level's remainder, so previous level costs are added back in.
         total_xp = sum(self.get_total_xp_for_stat(stat) for stat in self.data["stats"].values())
 
-        # The global account level is simpler than attribute levels: every fixed chunk
-        # of total XP adds one account level, and the remainder becomes ring progress.
-        total_level = (total_xp // ACCOUNT_XP_PER_LEVEL) + 1
-        progress = (total_xp % ACCOUNT_XP_PER_LEVEL) / float(ACCOUNT_XP_PER_LEVEL)
+        # Account levels use an Elden Ring-inspired cost curve instead of a fixed
+        # 500 XP chunk. The first level still costs 500 XP, then each level uses a
+        # higher multiplier so long-term rank progress slows down naturally.
+        total_level, xp_into_level, xp_needed = self.get_account_level_progress(total_xp)
+        progress = xp_into_level / float(xp_needed)
 
         # Once the total level is known, the header labels and avatar can be updated
         # with the matching title, color, and icon.
         title, color, tier_index = self.get_title_info(total_level)
         self.user_name_label.config(text=title, fg=color)
-        self.user_level_label.config(text=f"Total Lvl: {total_level}  |  {total_xp} Total XP", fg=self.accent_green)
+        self.user_level_label.config(text=f"Total Lvl: {total_level}  |  {xp_into_level} / {xp_needed} XP  |  {total_xp} Total XP", fg=self.accent_green)
 
         # This block plays a rank-up animation only after startup. current_total_level
         # starts at 0 so loading an existing save does not trigger old animations.
@@ -1325,10 +1266,14 @@ class LifeXPApp:
         tiers = self.get_tiers()
         self._last_rendered_tiers = tiers
 
-        # More tiers means more rows, so icons and labels shrink slightly to keep the
-        # trophy room from taking too much space.
-        icon_size = 24 if len(tiers) > 3 else 50
-        font_size = 7 if len(tiers) > 3 else 9
+        # More tiers means more rows, so icons shrink aggressively to keep the trophy room
+        # from taking too much space while still giving the art far more pixels than
+        # the old 10x10 masks.
+        expanded_tiers = len(tiers) > 3
+        icon_size = 34 if expanded_tiers else 62
+        font_size = 6 if expanded_tiers else 7
+        attr_font_size = 8 if expanded_tiers else 9
+        cell_pady = 0 if expanded_tiers else 1
 
         # The outer loop creates one column per attribute. The inner loop creates one
         # trophy cell per tier inside that attribute column.
@@ -1338,13 +1283,13 @@ class LifeXPApp:
                 text=attr,
                 bg=self.bg_light,
                 fg=self.attr_colors[attr],
-                font=("{San Francisco}", 10, "bold")
+                font=("{San Francisco}", attr_font_size, "bold")
             ).grid(row=0, column=col_idx, pady=(5, 0))
             self.trophies_frame.columnconfigure(col_idx, weight=1)
 
             for row_idx, (tier_name, level_req) in enumerate(tiers):
                 cell_frame = tk.Frame(self.trophies_frame, bg=self.bg_light)
-                cell_frame.grid(row=row_idx+1, column=col_idx, pady=1)
+                cell_frame.grid(row=row_idx+1, column=col_idx, pady=cell_pady)
 
                 c = tk.Canvas(cell_frame, width=icon_size, height=icon_size, bg=self.bg_light, highlightthickness=0)
                 c.pack()
@@ -2604,12 +2549,30 @@ class LifeXPApp:
         if level_events or rank_event:
             self.schedule_level_up_sequence(level_events, rank_event)
 
+    def get_scaled_xp_needed(self, level, base_xp):
+        """Returns an Elden Ring-style level cost normalized to this app's base XP."""
+        raw_base = (
+            ACCOUNT_LEVEL_CURVE_BASE_MULTIPLIER
+            * ((1 + ACCOUNT_LEVEL_CURVE_OFFSET) ** 2)
+        ) + 1
+        upgrade_multiplier = max(
+            0.0,
+            ((level + ACCOUNT_LEVEL_CURVE_OFFSET) - ACCOUNT_LEVEL_CURVE_FLOOR)
+            * ACCOUNT_LEVEL_CURVE_UPGRADE_MULTIPLIER
+        )
+        raw_cost = (
+            (upgrade_multiplier + ACCOUNT_LEVEL_CURVE_BASE_MULTIPLIER)
+            * ((level + ACCOUNT_LEVEL_CURVE_OFFSET) ** 2)
+        ) + 1
+        return max(1, int(base_xp * (raw_cost / raw_base)))
+
     def get_xp_needed(self, level):
-        """Returns the XP required to pass the given level. Increases by 25% each level."""
-        # Attribute XP requirements grow by 25 percent per level. int() rounds the
-        # calculated requirement down to a whole number.
+        """Returns the XP required to pass the given attribute level."""
+        # Attributes now use the same normalized Elden-style curve as account levels.
+        # This keeps early levels quick while avoiding the extreme late-game wall from
+        # a fixed 25 percent exponential increase.
         if level not in self.xp_needed_cache:
-            self.xp_needed_cache[level] = int(BASE_XP_NEEDED * (XP_GROWTH_RATE ** (level - 1)))
+            self.xp_needed_cache[level] = self.get_scaled_xp_needed(level, BASE_XP_NEEDED)
         return self.xp_needed_cache[level]
 
     def get_total_xp_before_level(self, level):
@@ -2626,6 +2589,38 @@ class LifeXPApp:
         # Saved stats only keep the XP inside the current level. This helper adds the
         # XP paid for previous levels so account rank can use true lifetime progress.
         return stat["xp"] + self.get_total_xp_before_level(stat["level"])
+
+    def get_account_xp_needed(self, level):
+        """Returns account XP needed to advance from this total level."""
+        # This mirrors Elden Ring's shape: a small base multiplier applies early, then
+        # the per-level upgrade multiplier kicks in after the floor level. The result is
+        # normalized so LifeXP level 1 still costs ACCOUNT_BASE_XP_NEEDED instead of
+        # Elden Ring's raw rune value.
+        if level not in self.account_xp_needed_cache:
+            self.account_xp_needed_cache[level] = self.get_scaled_xp_needed(level, ACCOUNT_BASE_XP_NEEDED)
+        return self.account_xp_needed_cache[level]
+
+    def get_total_account_xp_before_level(self, level):
+        """Returns cumulative account XP needed to reach a total level."""
+        highest_cached_level = max(self.account_total_xp_before_level_cache)
+        total = self.account_total_xp_before_level_cache[highest_cached_level]
+        for next_level in range(highest_cached_level + 1, level + 1):
+            total += self.get_account_xp_needed(next_level - 1)
+            self.account_total_xp_before_level_cache[next_level] = total
+        return self.account_total_xp_before_level_cache[level]
+
+    def get_account_level_progress(self, total_xp):
+        """Returns total level, XP inside that level, and XP needed for the next one."""
+        level = 1
+        xp_before_level = 0
+        xp_needed = self.get_account_xp_needed(level)
+
+        while total_xp >= xp_before_level + xp_needed:
+            xp_before_level += xp_needed
+            level += 1
+            xp_needed = self.get_account_xp_needed(level)
+
+        return level, total_xp - xp_before_level, xp_needed
 
     def get_all_subcategories(self):
         """Returns every known activity name once, sorted for autocomplete."""
@@ -2693,49 +2688,173 @@ class LifeXPApp:
 
         return None
 
-    def draw_trophy(self, canvas, progress, color, shape_grid, is_gold=False, is_shiny=False):
-        """Draws an 8-bit shape, filling it from bottom to top based on progress."""
-        # Trophy drawing starts clean, measures the canvas, then converts the pixel-art
-        # grid into rectangles sized to fit that canvas.
+    def _trophy_material(self, level_req, progress):
+        """Returns tier-specific trophy colors, dimmed until the level is earned."""
+        if level_req >= 100:
+            material = ("#DDF8FF", "#7AA2F7", "#FFFFFF", "#B9F6FF")
+        elif level_req >= 50:
+            material = ("#F8FAFF", "#B7C4D8", "#FFFFFF", "#7AA2F7")
+        elif level_req >= 25:
+            material = ("#FFD700", "#B8860B", "#FFF4A3", "#F59E0B")
+        elif level_req >= 10:
+            material = ("#D9E2EC", "#8C99A8", "#FFFFFF", "#A7B4C4")
+        else:
+            material = ("#C9893D", "#7A4A20", "#FFD18A", "#9A5B2D")
+
+        # Locked trophies remain visible as aspirational silhouettes, then become more
+        # polished as the attribute approaches the required milestone.
+        intensity = 0.24 + (0.76 * max(0.0, min(progress, 1.0)))
+        dim = "#3F4758"
+        return tuple(self._blend_color(dim, color, intensity) for color in material)
+
+    def draw_attribute_symbol(self, canvas, attr, cx, cy, size, color, line_color):
+        """Draws the attribute emblem inside the trophy medallion."""
+        stroke = max(2, int(size * 0.08))
+        if attr == "Strength":
+            bar_y = cy
+            plate_w = size * 0.12
+            plate_h = size * 0.34
+            canvas.create_line(cx - size * 0.34, bar_y, cx + size * 0.34, bar_y, fill=line_color, width=stroke, capstyle=tk.ROUND)
+            for side in (-1, 1):
+                x = cx + side * size * 0.26
+                canvas.create_rectangle(x - plate_w, bar_y - plate_h / 2, x + plate_w, bar_y + plate_h / 2, fill=line_color, outline="")
+                canvas.create_rectangle(x + side * size * 0.13 - plate_w / 2, bar_y - plate_h * 0.42, x + side * size * 0.13 + plate_w / 2, bar_y + plate_h * 0.42, fill=line_color, outline="")
+        elif attr == "Agility":
+            shoe = [
+                cx - size * 0.32, cy + size * 0.10,
+                cx - size * 0.05, cy + size * 0.16,
+                cx + size * 0.30, cy + size * 0.05,
+                cx + size * 0.36, cy + size * 0.17,
+                cx + size * 0.05, cy + size * 0.31,
+                cx - size * 0.30, cy + size * 0.24
+            ]
+            canvas.create_polygon(shoe, fill=line_color, outline="")
+            for index in range(3):
+                y = cy - size * (0.26 - index * 0.09)
+                canvas.create_arc(cx - size * (0.42 - index * 0.07), y, cx + size * 0.06, y + size * 0.28, start=18, extent=132, outline=line_color, width=max(1, stroke - 1), style=tk.ARC)
+            canvas.create_line(cx - size * 0.15, cy + size * 0.10, cx + size * 0.10, cy + size * 0.04, fill=color, width=max(1, stroke - 1))
+        elif attr == "Intelligence":
+            canvas.create_oval(cx - size * 0.26, cy - size * 0.30, cx + size * 0.26, cy + size * 0.18, fill="", outline=line_color, width=stroke)
+            canvas.create_rectangle(cx - size * 0.13, cy + size * 0.15, cx + size * 0.13, cy + size * 0.30, fill=line_color, outline="")
+            for offset in (-0.16, 0.0, 0.16):
+                canvas.create_arc(cx - size * 0.25 + size * offset, cy - size * 0.26, cx + size * 0.12 + size * offset, cy + size * 0.06, start=35, extent=245, outline=line_color, width=max(1, stroke - 1), style=tk.ARC)
+            canvas.create_line(cx, cy - size * 0.24, cx, cy + size * 0.08, fill=line_color, width=max(1, stroke - 1))
+        elif attr == "Charisma":
+            crown = [
+                cx - size * 0.34, cy - size * 0.05,
+                cx - size * 0.22, cy - size * 0.30,
+                cx - size * 0.06, cy - size * 0.08,
+                cx + size * 0.10, cy - size * 0.32,
+                cx + size * 0.24, cy - size * 0.07,
+                cx + size * 0.34, cy - size * 0.27,
+                cx + size * 0.30, cy + size * 0.16,
+                cx - size * 0.28, cy + size * 0.16
+            ]
+            canvas.create_polygon(crown, fill=line_color, outline="")
+            canvas.create_line(cx - size * 0.24, cy + size * 0.25, cx + size * 0.24, cy + size * 0.25, fill=line_color, width=stroke, capstyle=tk.ROUND)
+            for x in (cx - size * 0.12, cx + size * 0.12):
+                canvas.create_oval(x - size * 0.035, cy + size * 0.01, x + size * 0.035, cy + size * 0.08, fill=color, outline="")
+        elif attr == "Vitality":
+            heart = [
+                cx, cy + size * 0.29,
+                cx - size * 0.32, cy + size * 0.02,
+                cx - size * 0.27, cy - size * 0.24,
+                cx - size * 0.06, cy - size * 0.19,
+                cx, cy - size * 0.07,
+                cx + size * 0.06, cy - size * 0.19,
+                cx + size * 0.27, cy - size * 0.24,
+                cx + size * 0.32, cy + size * 0.02
+            ]
+            canvas.create_polygon(heart, fill=line_color, outline="", smooth=True)
+            pulse = [
+                cx - size * 0.26, cy + size * 0.02,
+                cx - size * 0.10, cy + size * 0.02,
+                cx - size * 0.04, cy - size * 0.10,
+                cx + size * 0.04, cy + size * 0.12,
+                cx + size * 0.10, cy + size * 0.02,
+                cx + size * 0.26, cy + size * 0.02
+            ]
+            canvas.create_line(pulse, fill=color, width=max(1, stroke - 1), capstyle=tk.ROUND, joinstyle=tk.ROUND)
+
+    def draw_trophy(self, canvas, attr, progress, color, level_req):
+        """Draws a high-resolution attribute trophy with tier-specific upgrades."""
         canvas.delete("all")
 
         c_width = int(canvas['width'])
         c_height = int(canvas['height'])
+        s = min(c_width, c_height)
+        scale = s / 92.0
+        cx = c_width / 2
+        left = cx - (s * 0.36)
+        right = cx + (s * 0.36)
+        top = s * 0.08
+        bowl_bottom = s * 0.52
+        base_y = s * 0.82
 
-        rows = len(shape_grid)
-        cols = len(shape_grid[0])
+        primary, shadow, highlight, accent = self._trophy_material(level_req, progress)
+        dark_line = self._blend_color(shadow, "#111827", 0.32)
+        glow = self._blend_color(color, "#FFFFFF", 0.18 + (0.35 * progress))
 
-        pixel_size = max(1, (c_width - 10) // max(rows, cols))
+        canvas.create_oval(cx - s * 0.31, base_y + s * 0.08, cx + s * 0.31, base_y + s * 0.19, fill=self._blend_color(self.bg_light, "#000000", 0.16), outline="")
 
-        offset_x = (c_width - (cols * pixel_size)) // 2
-        offset_y = (c_height - (rows * pixel_size)) // 2
+        if level_req >= 50:
+            for angle in range(0, 360, 45):
+                radians = math.radians(angle)
+                inner = s * 0.36
+                outer = s * (0.43 if level_req < 100 else 0.47)
+                canvas.create_line(
+                    cx + math.cos(radians) * inner,
+                    s * 0.40 + math.sin(radians) * inner,
+                    cx + math.cos(radians) * outer,
+                    s * 0.40 + math.sin(radians) * outer,
+                    fill=glow,
+                    width=max(1, int(2 * scale)),
+                    capstyle=tk.ROUND
+                )
 
-        # The fill effect works like a waterline: progress determines the vertical cutoff,
-        # and pixels below that cutoff are colored while pixels above are dim.
-        total_height = rows * pixel_size
-        fill_height = total_height * progress
-        cutoff_y = offset_y + total_height - fill_height
+        canvas.create_arc(left - s * 0.20, top + s * 0.09, left + s * 0.21, bowl_bottom + s * 0.08, start=70, extent=210, outline=shadow, width=max(3, int(4 * scale)), style=tk.ARC)
+        canvas.create_arc(right - s * 0.21, top + s * 0.09, right + s * 0.20, bowl_bottom + s * 0.08, start=-100, extent=210, outline=shadow, width=max(3, int(4 * scale)), style=tk.ARC)
 
-        base_color = "#FFD700" if is_gold else ("#00FFFF" if is_shiny else color)
+        bowl = [
+            left, top,
+            right, top,
+            cx + s * 0.28, bowl_bottom,
+            cx - s * 0.28, bowl_bottom
+        ]
+        canvas.create_polygon(bowl, fill=primary, outline=dark_line, width=max(1, int(2 * scale)), smooth=True)
+        canvas.create_polygon(left + s * 0.05, top + s * 0.04, cx - s * 0.04, top + s * 0.05, cx - s * 0.12, bowl_bottom - s * 0.03, left + s * 0.13, bowl_bottom - s * 0.02, fill=highlight, outline="")
+        canvas.create_polygon(cx + s * 0.10, top + s * 0.05, right - s * 0.05, top + s * 0.05, right - s * 0.14, bowl_bottom - s * 0.04, cx + s * 0.17, bowl_bottom - s * 0.02, fill=self._blend_color(primary, shadow, 0.28), outline="")
+        canvas.create_arc(left, top - s * 0.05, right, top + s * 0.09, start=0, extent=180, outline=highlight, width=max(2, int(3 * scale)), style=tk.ARC)
 
-        # The nested loops visit every cell in the trophy shape. Only "1" cells are
-        # drawn, and each drawn cell chooses filled or dim color based on progress.
-        for r in range(rows):
-            for c in range(cols):
-                if shape_grid[r][c] == "1":
-                    x1 = offset_x + (c * pixel_size)
-                    y1 = offset_y + (r * pixel_size)
-                    x2 = x1 + pixel_size
-                    y2 = y1 + pixel_size
+        stem_w = s * 0.16
+        canvas.create_rectangle(cx - stem_w / 2, bowl_bottom - s * 0.01, cx + stem_w / 2, base_y, fill=shadow, outline=dark_line, width=max(1, int(scale)))
+        canvas.create_polygon(cx - s * 0.27, base_y - s * 0.05, cx + s * 0.27, base_y - s * 0.05, cx + s * 0.35, base_y + s * 0.08, cx - s * 0.35, base_y + s * 0.08, fill=primary, outline=dark_line, width=max(1, int(2 * scale)))
+        canvas.create_rectangle(cx - s * 0.28, base_y + s * 0.05, cx + s * 0.28, base_y + s * 0.14, fill=shadow, outline=dark_line, width=max(1, int(scale)))
 
-                    pixel_center_y = y1 + (pixel_size / 2)
+        medallion_r = s * 0.19
+        canvas.create_oval(cx - medallion_r, top + s * 0.18, cx + medallion_r, top + s * 0.18 + medallion_r * 2, fill=self._blend_color(color, "#111827", 0.14), outline=highlight, width=max(1, int(2 * scale)))
+        self.draw_attribute_symbol(canvas, attr, cx, top + s * 0.18 + medallion_r, medallion_r * 1.45, color, self.get_readable_text_color(color))
 
-                    if pixel_center_y >= cutoff_y:
-                        fill_color = base_color
-                    else:
-                        fill_color = "#4C566A"
+        if level_req >= 10:
+            for offset in (-0.22, 0, 0.22):
+                canvas.create_oval(cx + s * offset - s * 0.035, top + s * 0.02, cx + s * offset + s * 0.035, top + s * 0.09, fill=glow, outline=highlight)
 
-                    canvas.create_rectangle(x1, y1, x2, y2, fill=fill_color, outline="")
+        if level_req >= 25:
+            for side in (-1, 1):
+                for index in range(3):
+                    y = bowl_bottom + s * (0.01 + index * 0.08)
+                    x = cx + side * s * (0.26 + index * 0.015)
+                    leaf = [x, y, x + side * s * 0.12, y - s * 0.04, x + side * s * 0.08, y + s * 0.04]
+                    canvas.create_polygon(leaf, fill=accent, outline="", smooth=True)
+
+        if level_req >= 50:
+            canvas.create_arc(cx - s * 0.40, top - s * 0.04, cx + s * 0.40, top + s * 0.18, start=15, extent=150, outline=glow, width=max(1, int(2 * scale)), style=tk.ARC)
+
+        if level_req >= 100:
+            for x, y in ((cx - s * 0.33, top + s * 0.04), (cx + s * 0.34, top + s * 0.27), (cx, top - s * 0.02)):
+                r = s * 0.035
+                canvas.create_line(x - r, y, x + r, y, fill="#FFFFFF", width=max(1, int(2 * scale)))
+                canvas.create_line(x, y - r, x, y + r, fill="#FFFFFF", width=max(1, int(2 * scale)))
 
     def update_stats_display(self, animate_rank=True):
         """Updates the text labels, progress bars, and visual trophies on the Character tab."""
@@ -2759,14 +2878,10 @@ class LifeXPApp:
             self.stat_labels[f"{attr}_pb"]['maximum'] = xp_needed
             self.stat_labels[f"{attr}_pb"]['value'] = xp
 
-            shape = self.pixel_shapes[attr]
-
             for tier_name, level_req in current_tiers:
                 canvas = self.trophy_canvases[f"{attr}_{tier_name}"]
                 progress = min(lvl / float(level_req), 1.0)
-                is_gold = (level_req == 50)
-                is_shiny = (level_req == 100)
-                self.draw_trophy(canvas, progress, self.attr_colors[attr], shape, is_gold, is_shiny)
+                self.draw_trophy(canvas, attr, progress, self.attr_colors[attr], level_req)
 
         return self.update_header(animate_rank=animate_rank)
 
