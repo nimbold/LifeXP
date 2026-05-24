@@ -796,57 +796,76 @@ class LifeXPApp:
         return image
 
     def build_tab_icons(self):
-        """Creates generated pixel icons for the main navigation tabs."""
-        # Color meaning follows common UI guidance: blue for active work/logs, green for
-        # character growth, and gold for history/records.
-        patterns = {
-            "tasks": [
-                "..BBBBBB..",
-                ".BWWWWWWB.",
-                ".BWBBBBWB.",
-                ".BWWWWWWB.",
-                ".BWBBBBWB.",
-                ".BWWWWWWB.",
-                ".BWBBBBWB.",
-                ".BWWWWWWB.",
-                "..BBBBBB..",
-                ".........."
-            ],
-            "character": [
-                "....GG....",
-                "...GWWG...",
-                "..GWWWWG..",
-                ".GWWGGWWG.",
-                ".GWGGGGWG.",
-                "..GGGGGG..",
-                "..G.GG.G..",
-                ".G..GG..G.",
-                "....GG....",
-                ".........."
-            ],
-            "chronicles": [
-                "..YYYYYY..",
-                ".YWWWWWWY.",
-                ".YWYYYYWY.",
-                ".YWWWWWWY.",
-                ".YWYYYYWY.",
-                ".YWWWWWWY.",
-                ".YWYYYYWY.",
-                ".YWWWWWWY.",
-                "..YYYYYY..",
-                ".........."
-            ]
-        }
+        """Creates consistent 24px navigation icons for the main tabs."""
+        size = 24
+        line = "#D8DEE9"
+        muted = "#6F7A8A"
+        quest = "#88C0D0"
+        character = "#FFB020"
+        chronicle = "#EBCB8B"
 
-        palettes = {
-            "tasks": {"B": "#0A84FF", "W": "#EAF3FF"},
-            "character": {"G": "#34C759", "W": "#EFFFF3"},
-            "chronicles": {"Y": "#FFCC00", "W": "#FFF8D6"}
-        }
+        def icon():
+            return tk.PhotoImage(width=size, height=size)
+
+        def rect(image, x1, y1, x2, y2, color):
+            image.put(color, to=(int(x1), int(y1), int(x2), int(y2)))
+
+        def dot(image, cx, cy, radius, color):
+            radius = int(radius)
+            for y in range(int(cy) - radius, int(cy) + radius + 1):
+                for x in range(int(cx) - radius, int(cx) + radius + 1):
+                    if 0 <= x < size and 0 <= y < size and ((x - cx) ** 2 + (y - cy) ** 2) <= radius ** 2:
+                        image.put(color, (x, y))
+
+        def stroke(image, x1, y1, x2, y2, color, width=2):
+            steps = max(abs(int(x2 - x1)), abs(int(y2 - y1)), 1)
+            for step in range(steps + 1):
+                t = step / float(steps)
+                x = x1 + ((x2 - x1) * t)
+                y = y1 + ((y2 - y1) * t)
+                dot(image, round(x), round(y), max(1, width // 2), color)
+
+        def rect_outline(image, x1, y1, x2, y2, color, width=2):
+            stroke(image, x1, y1, x2, y1, color, width)
+            stroke(image, x2, y1, x2, y2, color, width)
+            stroke(image, x2, y2, x1, y2, color, width)
+            stroke(image, x1, y2, x1, y1, color, width)
+
+        def ellipse_outline(image, cx, cy, rx, ry, color, width=2):
+            for degrees in range(0, 360, 3):
+                radians = math.radians(degrees)
+                x = cx + math.cos(radians) * rx
+                y = cy + math.sin(radians) * ry
+                dot(image, round(x), round(y), max(1, width // 2), color)
+
+        tasks = icon()
+        rect_outline(tasks, 6, 5, 18, 21, line, 2)
+        rect(tasks, 9, 3, 15, 6, quest)
+        stroke(tasks, 8, 10, 10, 12, quest, 2)
+        stroke(tasks, 10, 12, 14, 8, quest, 2)
+        stroke(tasks, 8, 16, 10, 18, quest, 2)
+        stroke(tasks, 10, 18, 15, 13, quest, 2)
+
+        character_icon = icon()
+        ellipse_outline(character_icon, 12, 12, 8, 8, character, 2)
+        dot(character_icon, 12, 9, 3, line)
+        stroke(character_icon, 7, 17, 10, 14, line, 2)
+        stroke(character_icon, 10, 14, 14, 14, line, 2)
+        stroke(character_icon, 14, 14, 17, 17, line, 2)
+        stroke(character_icon, 12, 2, 12, 5, character, 2)
+
+        chronicles = icon()
+        stroke(chronicles, 6, 4, 6, 20, muted, 2)
+        rect_outline(chronicles, 7, 5, 19, 20, line, 2)
+        stroke(chronicles, 10, 15, 13, 12, chronicle, 2)
+        stroke(chronicles, 13, 12, 15, 14, chronicle, 2)
+        stroke(chronicles, 15, 14, 18, 9, chronicle, 2)
+        stroke(chronicles, 10, 9, 14, 9, muted, 1)
 
         return {
-            name: self.create_pixel_icon(pattern, palettes[name])
-            for name, pattern in patterns.items()
+            "tasks": tasks,
+            "character": character_icon,
+            "chronicles": chronicles
         }
 
     def create_level_up_arrow_icon(self, color):

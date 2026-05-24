@@ -14,6 +14,7 @@ Read `main.py` in this order:
 4. `load_data` and `save_data`: handles the JSON save file.
 5. `complete_task`, `gain_xp`, `get_xp_needed`: main RPG logic.
 6. `update_stats_display` and `update_header`: refreshes labels, bars, trophies, and account rank.
+7. `add_task_dialog`: creates quests, activity suggestions, and the quest queue.
 
 ## The Big Idea
 
@@ -97,23 +98,57 @@ Completed quests move into `self.data["history"]`.
 
 Chronicles reads this list to build reports.
 
+### Subcategories
+
+Saved activity suggestions live in `self.data["subcategories"]`.
+
+```python
+"Intelligence": ["Reading", "Coding", "Research"]
+```
+
+The app cleans old suggestions in `normalize_subcategories`. It removes noisy entries, merges close duplicates, and adds the current default activity list.
+
 ## How A Quest Gets Completed
 
 This is the most important flow in the app:
 
-1. You select a quest in the table.
-2. `complete_task` reads the selected task.
-3. The task is removed from `self.data["tasks"]`.
-4. `gain_xp(attribute, xp)` adds XP to the matching attribute.
-5. If enough XP exists, the attribute level increases.
-6. `check_trophies` awards a trophy at milestone levels.
-7. A history record is added.
+1. You select one or more quests in the table.
+2. `complete_task` reads the selected quests.
+3. Each quest gives XP to its matching attribute.
+4. Completed quests are removed from `self.data["tasks"]`.
+5. History records are added to `self.data["history"]`.
+6. If enough XP exists, attributes level up.
+7. `check_trophies` awards milestone trophies.
 8. `save_data` writes the JSON file.
 9. `refresh_task_list` redraws the quest table.
 10. `update_stats_display` refreshes bars, trophies, and rank.
 11. Reward animations play.
 
 If you understand this flow, you understand the heart of LifeXP.
+
+## Accepting Quests
+
+`add_task_dialog` builds the Accept Quest window.
+
+Important pieces:
+
+```python
+attr_var
+activity_var
+difficulty_var
+pending_quests
+```
+
+What they mean:
+
+- `attr_var`: selected activity filter or attribute.
+- `activity_var`: text typed by the user.
+- `difficulty_var`: 1 to 10 difficulty.
+- `pending_quests`: quests waiting to be accepted.
+
+The `All` filter shows every activity alphabetically. Attribute filters show only their own activities. If the user types a brand-new activity while `All` is selected, the app asks which attribute it belongs to.
+
+The active quest table also supports multi-select. Complete and abandon work on all selected quests. Edit opens a batch editor when more than one quest is selected.
 
 ## XP Scaling
 
@@ -230,6 +265,7 @@ What they do:
 - `draw_trophy`: draws the cup, handles, base, medallion, and tier upgrades.
 - `draw_attribute_symbol`: draws the attribute symbol inside the medallion.
 - `_trophy_material`: chooses bronze, silver, gold, platinum, or crystal-like colors.
+- `resize_trophy_canvases`: resizes trophies when the window changes.
 
 Trophy tiers:
 
@@ -241,7 +277,7 @@ Level 50   Grandmaster
 Level 100  Legend
 ```
 
-The app starts by showing levels 5, 10, and 25. After an attribute passes level 25, it also shows levels 50 and 100 with smaller icons so everything fits.
+The app starts by showing levels 5, 10, and 25. After an attribute passes level 25, it also shows levels 50 and 100. Locked trophies are greyed out. Earned trophies use color and shine.
 
 ## Themes
 
@@ -282,12 +318,14 @@ LifeXP uses this for:
 
 - XP popups
 - Level-up messages
-- Rank-up messages
+- Header rank-up glow
 - Trophy messages
 - Firework particles
 - Button feedback
 
 The core idea is simple: draw something, wait a few milliseconds, update it, repeat.
+
+Rank-up animation now happens in the header. The avatar ring fills orange, the title glows, and the account level text counts upward.
 
 ## Safe Beginner Edits
 
@@ -300,6 +338,7 @@ Try these one at a time:
 5. Change trophy milestone levels in `get_tiers`.
 6. Change popup text in `play_level_up_animation`.
 7. Change the report text in `show_summary`.
+8. Change tab icons in `build_tab_icons`.
 
 After each edit, run:
 
