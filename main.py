@@ -85,6 +85,8 @@ class LifeXPApp:
         self.account_xp_needed_cache = {}
         self.account_total_xp_before_level_cache = {1: 0}
         self._last_rendered_tiers = None
+        self._trophy_canvas_size = None
+        self._trophy_resize_after_id = None
         self._max_stat_level = 1
         self.current_summary_timeframe = "daily"
 
@@ -1270,6 +1272,70 @@ class LifeXPApp:
                 self._tiers_cache = [("Apprentice", 5), ("Adept", 10), ("Master", 25)]
         return self._tiers_cache
 
+    def calculate_trophy_canvas_size(self, tiers):
+        """Returns trophy canvas dimensions that fit the current trophy room."""
+        columns = max(1, len(self.attributes))
+        rows = max(1, len(tiers))
+
+        frame_width = self.trophies_frame.winfo_width()
+        if frame_width <= 1:
+            frame_width = max(420, self.root.winfo_width() - 60)
+
+        frame_height = self.trophies_frame.winfo_height()
+        if frame_height <= 1:
+            frame_height = max(240, self.root.winfo_height() - 440)
+
+        width_per_column = (frame_width - 28) / columns
+        height_per_row = (frame_height - 30 - (rows * 17)) / rows
+
+        max_width = 94 if rows <= 3 else 70
+        min_width = 52 if rows <= 3 else 38
+        width = int(max(min_width, min(max_width, width_per_column * 0.72)))
+
+        preferred_height = width * 1.12
+        max_height = 108 if rows <= 3 else 78
+        min_height = 58 if rows <= 3 else 44
+        height = int(max(min_height, min(max_height, preferred_height, height_per_row)))
+
+        return width, height
+
+    def schedule_trophy_room_resize(self, event=None):
+        """Debounces trophy resizing while the window is being dragged."""
+        if not hasattr(self, "trophies_frame"):
+            return
+        if self._trophy_resize_after_id is not None:
+            self.root.after_cancel(self._trophy_resize_after_id)
+        self._trophy_resize_after_id = self.root.after(60, self.resize_trophy_canvases)
+
+    def resize_trophy_canvases(self):
+        """Resizes trophy canvases and redraws art for the current room dimensions."""
+        self._trophy_resize_after_id = None
+        if not self.trophy_canvases:
+            return
+
+        tiers = self.get_tiers()
+        size = self.calculate_trophy_canvas_size(tiers)
+        if size == self._trophy_canvas_size:
+            return
+
+        self._trophy_canvas_size = size
+        width, height = size
+        for canvas in self.trophy_canvases.values():
+            canvas.configure(width=width, height=height)
+
+        self.redraw_trophies(tiers)
+
+    def redraw_trophies(self, tiers):
+        """Draws every trophy using current levels and canvas sizes."""
+        for attr in self.attributes:
+            lvl = self.data["stats"][attr]["level"]
+            for tier_name, level_req in tiers:
+                canvas = self.trophy_canvases.get(f"{attr}_{tier_name}")
+                if canvas is None:
+                    continue
+                progress = min(lvl / float(level_req), 1.0)
+                self.draw_trophy(canvas, attr, progress, self.attr_colors[attr], level_req)
+
     def rebuild_trophy_room(self):
         # Rebuilding means clearing the old trophy widgets, then creating a fresh grid
         # that matches the current tier list.
@@ -1280,14 +1346,14 @@ class LifeXPApp:
         tiers = self.get_tiers()
         self._last_rendered_tiers = tiers
 
-        # More tiers means more rows, so icons shrink aggressively to keep the trophy room
-        # from taking too much space while still giving the art far more pixels than
-        # the old 10x10 masks.
+        # More tiers means more rows, but dimensions still come from the current room
+        # so resizing the window makes the trophies grow or shrink with it.
         expanded_tiers = len(tiers) > 3
-        icon_size = 34 if expanded_tiers else 62
-        font_size = 6 if expanded_tiers else 7
+        icon_width, icon_height = self.calculate_trophy_canvas_size(tiers)
+        self._trophy_canvas_size = (icon_width, icon_height)
+        font_size = 7 if expanded_tiers else 8
         attr_font_size = 8 if expanded_tiers else 9
-        cell_pady = 0 if expanded_tiers else 1
+        cell_pady = 1 if expanded_tiers else 2
 
         # The outer loop creates one column per attribute. The inner loop creates one
         # trophy cell per tier inside that attribute column.
@@ -1305,7 +1371,7 @@ class LifeXPApp:
                 cell_frame = tk.Frame(self.trophies_frame, bg=self.bg_light)
                 cell_frame.grid(row=row_idx+1, column=col_idx, pady=cell_pady)
 
-                c = tk.Canvas(cell_frame, width=icon_size, height=icon_size, bg=self.bg_light, highlightthickness=0)
+                c = tk.Canvas(cell_frame, width=icon_width, height=icon_height, bg=self.bg_light, highlightthickness=0)
                 c.pack()
 
                 tk.Label(cell_frame, text=f"Lvl {level_req}", font=("{San Francisco}", font_size), bg=self.bg_light, fg=self.text_color).pack()
@@ -1368,6 +1434,7 @@ class LifeXPApp:
 
         self.trophies_frame = tk.Frame(trophy_section, bg=self.bg_light)
         self.trophies_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+        self.trophies_frame.bind("<Configure>", self.schedule_trophy_room_resize)
 
         self.trophy_canvases = {}
         self.rebuild_trophy_room()
@@ -2822,7 +2889,17 @@ class LifeXPApp:
         return None
 
     def _trophy_material(self, level_req, progress):
-        """Returns tier-specific trophy colors, dimmed until the level is earned."""
+        """Returns tier-specific trophy colors or disabled greys while locked."""
+        progress = max(0.0, min(progress, 1.0))
+        if progress < 1.0:
+            lift = progress * 0.42
+            return (
+                self._blend_color("#3E4654", "#7E8796", lift),
+                self._blend_color("#262C36", "#596272", lift),
+                self._blend_color("#7C8594", "#D1D6DF", lift),
+                self._blend_color("#4B5563", "#9AA3B2", lift)
+            )
+
         if level_req >= 100:
             material = ("#DDF8FF", "#7AA2F7", "#FFFFFF", "#B9F6FF")
         elif level_req >= 50:
@@ -2834,11 +2911,7 @@ class LifeXPApp:
         else:
             material = ("#C9893D", "#7A4A20", "#FFD18A", "#9A5B2D")
 
-        # Locked trophies remain visible as aspirational silhouettes, then become more
-        # polished as the attribute approaches the required milestone.
-        intensity = 0.24 + (0.76 * max(0.0, min(progress, 1.0)))
-        dim = "#3F4758"
-        return tuple(self._blend_color(dim, color, intensity) for color in material)
+        return material
 
     def draw_attribute_symbol(self, canvas, attr, cx, cy, size, color, line_color):
         """Draws the attribute emblem inside the trophy medallion."""
@@ -2915,76 +2988,110 @@ class LifeXPApp:
 
         c_width = int(canvas['width'])
         c_height = int(canvas['height'])
-        s = min(c_width, c_height)
-        scale = s / 92.0
+        s = min(c_width * 0.78, c_height * 0.86)
+        scale = max(0.45, s / 92.0)
         cx = c_width / 2
-        left = cx - (s * 0.36)
-        right = cx + (s * 0.36)
-        top = s * 0.08
-        bowl_bottom = s * 0.52
-        base_y = s * 0.82
+        y0 = max(0, (c_height - (s * 0.98)) / 2)
+        left = cx - (s * 0.28)
+        right = cx + (s * 0.28)
+        rim_left = cx - (s * 0.34)
+        rim_right = cx + (s * 0.34)
+        top = y0 + (s * 0.07)
+        bowl_bottom = y0 + (s * 0.48)
+        base_y = y0 + (s * 0.76)
 
+        earned = progress >= 1.0
+        display_color = color if earned else self._blend_color("#586273", "#A8AFBB", progress * 0.35)
         primary, shadow, highlight, accent = self._trophy_material(level_req, progress)
         dark_line = self._blend_color(shadow, "#111827", 0.32)
-        glow = self._blend_color(color, "#FFFFFF", 0.18 + (0.35 * progress))
+        glow = self._blend_color(display_color, "#FFFFFF", 0.18 + (0.35 * progress)) if earned else self._blend_color("#4B5563", "#C3CAD5", 0.18 + (progress * 0.20))
+        rim_shine = "#FFFFFF" if earned else "#9EA7B6"
 
         canvas.create_oval(cx - s * 0.31, base_y + s * 0.08, cx + s * 0.31, base_y + s * 0.19, fill=self._blend_color(self.bg_light, "#000000", 0.16), outline="")
 
         if level_req >= 50:
             for angle in range(0, 360, 45):
                 radians = math.radians(angle)
-                inner = s * 0.36
-                outer = s * (0.43 if level_req < 100 else 0.47)
+                ray_cy = y0 + s * 0.39
+                inner = s * 0.33
+                outer = s * (0.40 if level_req < 100 else 0.43)
                 canvas.create_line(
                     cx + math.cos(radians) * inner,
-                    s * 0.40 + math.sin(radians) * inner,
+                    ray_cy + math.sin(radians) * inner,
                     cx + math.cos(radians) * outer,
-                    s * 0.40 + math.sin(radians) * outer,
+                    ray_cy + math.sin(radians) * outer,
                     fill=glow,
                     width=max(1, int(2 * scale)),
                     capstyle=tk.ROUND
                 )
 
-        canvas.create_arc(left - s * 0.20, top + s * 0.09, left + s * 0.21, bowl_bottom + s * 0.08, start=70, extent=210, outline=shadow, width=max(3, int(4 * scale)), style=tk.ARC)
-        canvas.create_arc(right - s * 0.21, top + s * 0.09, right + s * 0.20, bowl_bottom + s * 0.08, start=-100, extent=210, outline=shadow, width=max(3, int(4 * scale)), style=tk.ARC)
+        handle_width = max(3, int(4 * scale))
+        canvas.create_arc(cx - s * 0.49, top + s * 0.05, cx - s * 0.12, bowl_bottom + s * 0.10, start=78, extent=214, outline=shadow, width=handle_width, style=tk.ARC)
+        canvas.create_arc(cx + s * 0.12, top + s * 0.05, cx + s * 0.49, bowl_bottom + s * 0.10, start=-112, extent=214, outline=shadow, width=handle_width, style=tk.ARC)
+        canvas.create_arc(cx - s * 0.45, top + s * 0.10, cx - s * 0.17, bowl_bottom + s * 0.03, start=86, extent=194, outline=highlight, width=max(1, int(2 * scale)), style=tk.ARC)
+        canvas.create_arc(cx + s * 0.17, top + s * 0.10, cx + s * 0.45, bowl_bottom + s * 0.03, start=-100, extent=194, outline=highlight, width=max(1, int(2 * scale)), style=tk.ARC)
+
+        canvas.create_oval(rim_left, top - s * 0.04, rim_right, top + s * 0.08, fill=highlight, outline=dark_line, width=max(1, int(scale)))
 
         bowl = [
-            left, top,
-            right, top,
-            cx + s * 0.28, bowl_bottom,
-            cx - s * 0.28, bowl_bottom
+            left, top + s * 0.01,
+            right, top + s * 0.01,
+            cx + s * 0.24, bowl_bottom,
+            cx - s * 0.24, bowl_bottom
         ]
         canvas.create_polygon(bowl, fill=primary, outline=dark_line, width=max(1, int(2 * scale)), smooth=True)
-        canvas.create_polygon(left + s * 0.05, top + s * 0.04, cx - s * 0.04, top + s * 0.05, cx - s * 0.12, bowl_bottom - s * 0.03, left + s * 0.13, bowl_bottom - s * 0.02, fill=highlight, outline="")
-        canvas.create_polygon(cx + s * 0.10, top + s * 0.05, right - s * 0.05, top + s * 0.05, right - s * 0.14, bowl_bottom - s * 0.04, cx + s * 0.17, bowl_bottom - s * 0.02, fill=self._blend_color(primary, shadow, 0.28), outline="")
-        canvas.create_arc(left, top - s * 0.05, right, top + s * 0.09, start=0, extent=180, outline=highlight, width=max(2, int(3 * scale)), style=tk.ARC)
+        canvas.create_arc(rim_left, top - s * 0.04, rim_right, top + s * 0.08, start=0, extent=180, outline=rim_shine, width=max(1, int(2 * scale)), style=tk.ARC)
+        canvas.create_polygon(left + s * 0.04, top + s * 0.04, cx - s * 0.07, top + s * 0.04, cx - s * 0.13, bowl_bottom - s * 0.02, left + s * 0.11, bowl_bottom - s * 0.01, fill=highlight, outline="")
+        canvas.create_polygon(cx + s * 0.08, top + s * 0.04, right - s * 0.04, top + s * 0.04, right - s * 0.12, bowl_bottom - s * 0.03, cx + s * 0.16, bowl_bottom - s * 0.01, fill=self._blend_color(primary, shadow, 0.30), outline="")
+        canvas.create_line(cx - s * 0.20, bowl_bottom - s * 0.02, cx + s * 0.20, bowl_bottom - s * 0.02, fill=self._blend_color(primary, shadow, 0.18), width=max(1, int(2 * scale)), capstyle=tk.ROUND)
 
         stem_w = s * 0.16
-        canvas.create_rectangle(cx - stem_w / 2, bowl_bottom - s * 0.01, cx + stem_w / 2, base_y, fill=shadow, outline=dark_line, width=max(1, int(scale)))
-        canvas.create_polygon(cx - s * 0.27, base_y - s * 0.05, cx + s * 0.27, base_y - s * 0.05, cx + s * 0.35, base_y + s * 0.08, cx - s * 0.35, base_y + s * 0.08, fill=primary, outline=dark_line, width=max(1, int(2 * scale)))
-        canvas.create_rectangle(cx - s * 0.28, base_y + s * 0.05, cx + s * 0.28, base_y + s * 0.14, fill=shadow, outline=dark_line, width=max(1, int(scale)))
+        canvas.create_polygon(cx - stem_w / 2, bowl_bottom - s * 0.01, cx + stem_w / 2, bowl_bottom - s * 0.01, cx + stem_w * 0.72, base_y, cx - stem_w * 0.72, base_y, fill=shadow, outline=dark_line, width=max(1, int(scale)))
+        canvas.create_polygon(cx - s * 0.25, base_y - s * 0.05, cx + s * 0.25, base_y - s * 0.05, cx + s * 0.34, base_y + s * 0.08, cx - s * 0.34, base_y + s * 0.08, fill=primary, outline=dark_line, width=max(1, int(2 * scale)))
+        canvas.create_rectangle(cx - s * 0.29, base_y + s * 0.04, cx + s * 0.29, base_y + s * 0.14, fill=shadow, outline=dark_line, width=max(1, int(scale)))
+        canvas.create_line(cx - s * 0.22, base_y + s * 0.06, cx + s * 0.22, base_y + s * 0.06, fill=highlight, width=max(1, int(scale)), capstyle=tk.ROUND)
 
-        medallion_r = s * 0.19
-        canvas.create_oval(cx - medallion_r, top + s * 0.18, cx + medallion_r, top + s * 0.18 + medallion_r * 2, fill=self._blend_color(color, "#111827", 0.14), outline=highlight, width=max(1, int(2 * scale)))
-        self.draw_attribute_symbol(canvas, attr, cx, top + s * 0.18 + medallion_r, medallion_r * 1.45, color, self.get_readable_text_color(color))
+        medallion_r = s * 0.235
+        medallion_cy = top + s * 0.14 + medallion_r
+        medallion_fill = self._blend_color(display_color, "#111827", 0.14 if earned else 0.30)
+        medallion_shadow = self._blend_color(medallion_fill, "#000000", 0.20)
+        canvas.create_oval(cx - medallion_r, medallion_cy - medallion_r, cx + medallion_r, medallion_cy + medallion_r, fill=medallion_shadow, outline="")
+        canvas.create_oval(cx - medallion_r * 0.92, medallion_cy - medallion_r * 0.92, cx + medallion_r * 0.92, medallion_cy + medallion_r * 0.92, fill=medallion_fill, outline=highlight, width=max(1, int(2 * scale)))
+        canvas.create_arc(cx - medallion_r * 0.72, medallion_cy - medallion_r * 0.72, cx + medallion_r * 0.72, medallion_cy + medallion_r * 0.72, start=42, extent=98, outline=self._blend_color("#FFFFFF", highlight, 0.35), width=max(1, int(2 * scale)), style=tk.ARC)
+
+        symbol_size = medallion_r * 1.76
+        symbol_main = self.get_readable_text_color(medallion_fill, "#FFFFFF") if earned else "#D7DCE4"
+        symbol_shadow = self._blend_color(medallion_fill, "#000000", 0.48)
+        symbol_glow = self._blend_color(display_color, "#FFFFFF", 0.70 if earned else 0.28)
+        self.draw_attribute_symbol(canvas, attr, cx + s * 0.012, medallion_cy + s * 0.014, symbol_size, display_color, symbol_shadow)
+        self.draw_attribute_symbol(canvas, attr, cx, medallion_cy, symbol_size, symbol_glow, symbol_main)
+        shine_color = self._blend_color(symbol_main, "#FFFFFF", 0.55 if earned else 0.18)
+        canvas.create_line(cx - medallion_r * 0.43, medallion_cy - medallion_r * 0.48, cx - medallion_r * 0.12, medallion_cy - medallion_r * 0.72, fill=shine_color, width=max(1, int(2 * scale)), capstyle=tk.ROUND)
+        canvas.create_line(cx + medallion_r * 0.16, medallion_cy + medallion_r * 0.55, cx + medallion_r * 0.52, medallion_cy + medallion_r * 0.20, fill=shine_color, width=max(1, int(scale)), capstyle=tk.ROUND)
+        if earned:
+            sparkle_x = cx + medallion_r * 0.62
+            sparkle_y = medallion_cy - medallion_r * 0.58
+            sparkle_r = medallion_r * 0.16
+            canvas.create_line(sparkle_x - sparkle_r, sparkle_y, sparkle_x + sparkle_r, sparkle_y, fill="#FFFFFF", width=max(1, int(scale)), capstyle=tk.ROUND)
+            canvas.create_line(sparkle_x, sparkle_y - sparkle_r, sparkle_x, sparkle_y + sparkle_r, fill="#FFFFFF", width=max(1, int(scale)), capstyle=tk.ROUND)
 
         if level_req >= 10:
             for offset in (-0.22, 0, 0.22):
-                canvas.create_oval(cx + s * offset - s * 0.035, top + s * 0.02, cx + s * offset + s * 0.035, top + s * 0.09, fill=glow, outline=highlight)
+                canvas.create_oval(cx + s * offset - s * 0.032, top + s * 0.02, cx + s * offset + s * 0.032, top + s * 0.084, fill=glow, outline=highlight)
 
         if level_req >= 25:
             for side in (-1, 1):
                 for index in range(3):
                     y = bowl_bottom + s * (0.01 + index * 0.08)
-                    x = cx + side * s * (0.26 + index * 0.015)
-                    leaf = [x, y, x + side * s * 0.12, y - s * 0.04, x + side * s * 0.08, y + s * 0.04]
+                    x = cx + side * s * (0.22 + index * 0.012)
+                    leaf = [x, y, x + side * s * 0.11, y - s * 0.04, x + side * s * 0.07, y + s * 0.04]
                     canvas.create_polygon(leaf, fill=accent, outline="", smooth=True)
 
         if level_req >= 50:
-            canvas.create_arc(cx - s * 0.40, top - s * 0.04, cx + s * 0.40, top + s * 0.18, start=15, extent=150, outline=glow, width=max(1, int(2 * scale)), style=tk.ARC)
+            canvas.create_arc(cx - s * 0.38, top - s * 0.04, cx + s * 0.38, top + s * 0.18, start=15, extent=150, outline=glow, width=max(1, int(2 * scale)), style=tk.ARC)
 
         if level_req >= 100:
-            for x, y in ((cx - s * 0.33, top + s * 0.04), (cx + s * 0.34, top + s * 0.27), (cx, top - s * 0.02)):
+            for x, y in ((cx - s * 0.32, top + s * 0.04), (cx + s * 0.32, top + s * 0.27), (cx, top + s * 0.04)):
                 r = s * 0.035
                 canvas.create_line(x - r, y, x + r, y, fill="#FFFFFF", width=max(1, int(2 * scale)))
                 canvas.create_line(x, y - r, x, y + r, fill="#FFFFFF", width=max(1, int(2 * scale)))
@@ -3011,10 +3118,7 @@ class LifeXPApp:
             self.stat_labels[f"{attr}_pb"]['maximum'] = xp_needed
             self.stat_labels[f"{attr}_pb"]['value'] = xp
 
-            for tier_name, level_req in current_tiers:
-                canvas = self.trophy_canvases[f"{attr}_{tier_name}"]
-                progress = min(lvl / float(level_req), 1.0)
-                self.draw_trophy(canvas, attr, progress, self.attr_colors[attr], level_req)
+        self.redraw_trophies(current_tiers)
 
         return self.update_header(animate_rank=animate_rank)
 
