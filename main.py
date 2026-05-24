@@ -1216,7 +1216,7 @@ class LifeXPApp:
 
         # Treeview acts like a spreadsheet-style table. The code defines named columns,
         # then configures each heading and width.
-        self.task_tree = ttk.Treeview(table_frame, columns=("Task", "Attribute", "XP"), show="headings")
+        self.task_tree = ttk.Treeview(table_frame, columns=("Task", "Attribute", "XP"), show="headings", selectmode="extended")
         self.task_tree.heading("Task", text="Quest Name")
         self.task_tree.heading("Attribute", text="Scaling Attribute")
         self.task_tree.heading("XP", text="XP")
@@ -1226,6 +1226,8 @@ class LifeXPApp:
         self.task_tree.column("XP", width=100, anchor=tk.CENTER)
 
         self.task_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.task_tree.bind("<Command-Button-1>", self.toggle_task_tree_selection)
+        self.task_tree.bind("<Control-Button-1>", self.toggle_task_tree_selection)
 
         # The scrollbar and table are connected in both directions: the scrollbar moves
         # the table, and the table tells the scrollbar what portion is visible.
@@ -1893,19 +1895,56 @@ class LifeXPApp:
         # attributes, so this removes malformed entries, trims spaces, deduplicates
         # names, and then adds any default beginner suggestions that are missing.
         retired_subcategories = {
-            "Weightlifting",
-            "Pushups / Core",
-            "Stretching Routine",
-            "Yoga Break",
-            "Workout"
+            "weightlifting",
+            "pushups / core",
+            "stretching routine",
+            "yoga break",
+            "workout",
+            "farting"
+        }
+        activity_aliases = {
+            "strength training": ("Strength", "Resistance Training"),
+            "deep cleaning": ("Strength", "Heavy Chores"),
+            "moving furniture": ("Strength", "Heavy Chores"),
+            "carrying groceries": ("Strength", "Carry Groceries"),
+            "gardening": ("Strength", "Gardening / Yard Work"),
+            "sports practice": ("Agility", "Sports or Active Play"),
+            "standing desk time": ("Vitality", "Screen / Movement Break"),
+            "stretching": ("Agility", "Stretching / Mobility"),
+            "yoga": ("Agility", "Yoga / Mobility"),
+            "cleaning": ("Vitality", "Home Reset"),
+            "sweeping": ("Vitality", "Home Reset"),
+            "decluttering": ("Vitality", "Home Reset"),
+            "meal prep cleanup": ("Vitality", "Home Reset"),
+            "typing practice": ("Intelligence", "Digital Skills Practice"),
+            "inbox zero": ("Intelligence", "Digital Organization"),
+            "reading book": ("Intelligence", "Reading"),
+            "reading docs": ("Intelligence", "Reading"),
+            "writing notes": ("Intelligence", "Writing / Notes"),
+            "learning a framework": ("Intelligence", "Technical Learning"),
+            "cooking lunch": ("Vitality", "Cook Healthy Meal"),
+            "healthy breakfast": ("Vitality", "Cook Healthy Meal"),
+            "meal prep": ("Vitality", "Cook Healthy Meal"),
+            "drinking water": ("Vitality", "Hydration"),
+            "sleeping 8 hours": ("Vitality", "Sleep Routine"),
+            "skincare": ("Vitality", "Hygiene Routine"),
+            "no junk food": ("Vitality", "Nutrition Choice")
         }
         source = subcategories if isinstance(subcategories, dict) else {}
-        normalized = {}
+        normalized = {attr: [] for attr in self.attributes}
+        seen_by_attr = {attr: set() for attr in self.attributes}
 
-        for attr in self.attributes:
-            seen = set()
-            cleaned = []
-            raw_items = source.get(attr, [])
+        def add_activity(attr, name):
+            if attr not in normalized:
+                return
+            key = name.lower()
+            if key in seen_by_attr[attr]:
+                return
+            normalized[attr].append(name)
+            seen_by_attr[attr].add(key)
+
+        for source_attr in self.attributes:
+            raw_items = source.get(source_attr, [])
             if not isinstance(raw_items, list):
                 raw_items = []
 
@@ -1914,18 +1953,14 @@ class LifeXPApp:
                     continue
                 name = item.strip()
                 key = name.lower()
-                if not name or name in retired_subcategories or key in seen:
+                if not name or key in retired_subcategories:
                     continue
-                cleaned.append(name)
-                seen.add(key)
+                target_attr, target_name = activity_aliases.get(key, (source_attr, name))
+                add_activity(target_attr, target_name)
 
+        for attr in self.attributes:
             for default_name in default_subcategories[attr]:
-                key = default_name.lower()
-                if key not in seen:
-                    cleaned.append(default_name)
-                    seen.add(key)
-
-            normalized[attr] = cleaned
+                add_activity(attr, default_name)
 
         return normalized
 
@@ -1941,44 +1976,42 @@ class LifeXPApp:
             "trophies": [],
             "subcategories": {
                 "Strength": [
-                    "Strength Training",
+                    "Resistance Training",
                     "Bodyweight Exercise",
+                    "Core Training",
                     "Home Repairs",
-                    "Gardening",
-                    "Carrying Groceries",
-                    "Moving Furniture",
-                    "Deep Cleaning",
-                    "Standing Desk Time",
+                    "Heavy Chores",
+                    "Carry Groceries",
+                    "Gardening / Yard Work",
                     "Posture Practice",
-                    "Sports Practice"
+                    "Grip / Mobility"
                 ],
                 "Agility": [
                     "Walking",
                     "Running",
                     "Cycling",
-                    "Stretching",
-                    "Yoga",
-                    "Cleaning",
-                    "Sweeping",
-                    "Decluttering",
-                    "Typing Practice",
-                    "Inbox Zero",
-                    "Errands",
-                    "Meal Prep Cleanup"
+                    "Stretching / Mobility",
+                    "Yoga / Mobility",
+                    "Balance Practice",
+                    "Sports or Active Play",
+                    "Dance / Cardio",
+                    "Stair Climb",
+                    "Errands"
                 ],
                 "Intelligence": [
                     "Coding",
                     "Bug Fixing",
-                    "Reading Book",
-                    "Reading Docs",
+                    "Reading",
                     "Studying",
                     "Online Course",
+                    "Technical Learning",
                     "Language Practice",
-                    "Writing Notes",
+                    "Writing / Notes",
                     "Planning",
                     "Budget Review",
-                    "Learning a Framework",
-                    "Research"
+                    "Research",
+                    "Digital Organization",
+                    "Creative Practice"
                 ],
                 "Charisma": [
                     "Team Standup",
@@ -1992,23 +2025,26 @@ class LifeXPApp:
                     "Community Event",
                     "Presentation Practice",
                     "Conflict Resolution",
-                    "Thank You Note"
+                    "Active Listening",
+                    "Thank You Note",
+                    "Shared Meal"
                 ],
                 "Vitality": [
-                    "Cooking Lunch",
-                    "Healthy Breakfast",
-                    "Meal Prep",
+                    "Cook Healthy Meal",
                     "Meditation",
-                    "Drinking Water",
-                    "Sleeping 8 Hours",
+                    "Hydration",
+                    "Sleep Routine",
                     "Eye Rest",
-                    "Skincare",
+                    "Screen / Movement Break",
+                    "Outdoor Sunlight",
+                    "Home Reset",
+                    "Nutrition Choice",
+                    "Hygiene Routine",
                     "Medication",
                     "Doctor Appointment",
                     "Therapy",
                     "Breathing Exercise",
-                    "Outdoor Sunlight",
-                    "No Junk Food"
+                    "Digital Detox"
                 ]
             }
         }
@@ -2209,35 +2245,53 @@ class LifeXPApp:
         for i, task in enumerate(self.data["tasks"]):
             self.task_tree.insert("", tk.END, iid=i, values=(task["name"], task["attribute"], f"{task['xp']} XP"))
 
-    def get_selected_task_index(self, empty_message=None):
-        """Returns the selected quest index, or None if the selection is unusable."""
-        # Treeview selections are stored as string item IDs. Because the list can be
-        # refreshed after edits, this helper checks both conversion and current bounds
-        # before task actions touch self.data["tasks"].
+    def toggle_task_tree_selection(self, event):
+        """Supports Command/Ctrl-click toggling for active quest multi-select."""
+        item_id = self.task_tree.identify_row(event.y)
+        if not item_id:
+            return "break"
+
+        current_selection = set(self.task_tree.selection())
+        if item_id in current_selection:
+            self.task_tree.selection_remove(item_id)
+        else:
+            self.task_tree.selection_add(item_id)
+            self.task_tree.focus(item_id)
+        return "break"
+
+    def get_selected_task_indices(self, empty_message=None):
+        """Returns valid selected quest indices, preserving visual row order."""
         selected = self.task_tree.selection()
         if not selected:
             if empty_message:
                 messagebox.showinfo("Notice", empty_message, parent=self.root)
-            return None
+            return []
 
-        try:
-            index = int(selected[0])
-        except (TypeError, ValueError):
-            self.refresh_task_list()
-            return None
+        indices = []
+        for item_id in selected:
+            try:
+                index = int(item_id)
+            except (TypeError, ValueError):
+                self.refresh_task_list()
+                return []
+            if not 0 <= index < len(self.data["tasks"]):
+                self.refresh_task_list()
+                if empty_message:
+                    messagebox.showinfo("Notice", "That quest is no longer available. Please select it again.", parent=self.root)
+                return []
+            indices.append(index)
 
-        if not 0 <= index < len(self.data["tasks"]):
-            self.refresh_task_list()
-            if empty_message:
-                messagebox.showinfo("Notice", "That quest is no longer available. Please select it again.", parent=self.root)
-            return None
+        return sorted(set(indices))
 
-        return index
+    def get_selected_task_index(self, empty_message=None):
+        """Returns the selected quest index, or None if the selection is unusable."""
+        indices = self.get_selected_task_indices(empty_message)
+        if not indices:
+            return None
+        return indices[0]
 
     def add_task_dialog(self):
-        """Pops up a window to create a new task. Features global autocomplete!"""
-        # A Toplevel creates a second window for adding a quest. grab_set() makes it
-        # modal, meaning the user should finish this dialog before returning to the app.
+        """Pops up a wider, multi-add window for accepting one or more quests."""
         dialog = tk.Toplevel(self.root)
         dialog.withdraw()
         dialog.title("Accept Quest")
@@ -2245,7 +2299,7 @@ class LifeXPApp:
         dialog.transient(self.root)
 
         surface = tk.Frame(dialog, bg=self.bg_dark)
-        surface.pack(fill=tk.BOTH, expand=True, padx=24, pady=22)
+        surface.pack(fill=tk.BOTH, expand=True, padx=22, pady=18)
 
         header = tk.Frame(surface, bg=self.bg_dark)
         header.pack(fill=tk.X)
@@ -2254,20 +2308,25 @@ class LifeXPApp:
             text="Accept Quest",
             bg=self.bg_dark,
             fg=self.dark_surface_text_color,
-            font=("{San Francisco}", 22, "bold")
+            font=("{San Francisco}", 20, "bold")
         ).pack(anchor=tk.W)
         tk.Label(
             header,
-            text="Choose an attribute, find or type an activity, then set its XP.",
+            text="Build your quest queue.",
             bg=self.bg_dark,
             fg=self.accent_green,
             font=("{San Francisco}", 11)
         ).pack(anchor=tk.W, pady=(4, 0))
 
-        # Attribute chips keep quest categories visible without forcing an extra field.
-        attr_var = tk.StringVar(value=self.attributes[0])
+        all_filter_label = "All"
+        attr_var = tk.StringVar(value=all_filter_label)
+        activity_var = tk.StringVar()
+        difficulty_var = tk.IntVar(value=5)
+        pending_quests = []
+        suggest_after_id = [None]
+
         category_section = tk.Frame(surface, bg=self.bg_dark)
-        category_section.pack(fill=tk.X, pady=(22, 0))
+        category_section.pack(fill=tk.X, pady=(16, 0))
         tk.Label(
             category_section,
             text="Target Attribute",
@@ -2277,17 +2336,17 @@ class LifeXPApp:
         ).pack(anchor=tk.W)
 
         chip_row = tk.Frame(category_section, bg=self.bg_dark)
-        chip_row.pack(fill=tk.X, pady=(8, 8))
+        chip_row.pack(fill=tk.X, pady=(8, 0))
         chip_widgets = {}
 
         def refresh_category_chips():
-            # The selected chip gets the attribute color. The others stay neutral so the
-            # user can quickly tell which attribute a new custom activity will use.
             for attr, chip in chip_widgets.items():
                 selected = attr_var.get() == attr
+                selected_bg = self.accent_green if attr == all_filter_label else self.attr_colors[attr]
+                selected_fg = self.accent_text_color if attr == all_filter_label else self.attr_text_colors[attr]
                 chip.config(
-                    bg=self.attr_colors[attr] if selected else self.bg_light,
-                    fg=self.attr_text_colors[attr] if selected else self.text_color,
+                    bg=selected_bg if selected else self.bg_light,
+                    fg=selected_fg if selected else self.text_color,
                     relief=tk.FLAT if selected else tk.GROOVE,
                     bd=0 if selected else 1
                 )
@@ -2297,62 +2356,62 @@ class LifeXPApp:
             refresh_category_chips()
             update_suggestions()
 
-        for index, attr in enumerate(self.attributes):
+        filter_options = [all_filter_label] + self.attributes
+        for index, attr in enumerate(filter_options):
             chip = tk.Label(
                 chip_row,
                 text=attr,
                 bg=self.bg_light,
                 fg=self.text_color,
-                padx=12,
+                padx=8,
                 pady=7,
                 cursor="hand2",
                 font=("{San Francisco}", 10, "bold")
             )
-            # grid() makes the chips wrap into rows. This prevents long names like
-            # "Intelligence" or "Vitality" from disappearing off the right edge.
-            chip.grid(row=index // 3, column=index % 3, sticky="ew", padx=(0, 8), pady=(0, 8))
+            chip.grid(row=0, column=index, sticky="ew", padx=(0, 8))
             chip.bind("<Button-1>", lambda event, selected_attr=attr: choose_attribute(selected_attr))
             chip_widgets[attr] = chip
+            chip_row.grid_columnconfigure(index, weight=1, uniform="attribute_chips")
 
-        # Equal column weights make the chip grid feel intentional instead of letting
-        # each label pick a different width based only on its text length.
-        for column in range(3):
-            chip_row.grid_columnconfigure(column, weight=1, uniform="attribute_chips")
+        body = tk.Frame(surface, bg=self.bg_dark)
+        body.pack(fill=tk.BOTH, expand=True, pady=(16, 0))
+        body.grid_columnconfigure(0, weight=3)
+        body.grid_columnconfigure(1, weight=2)
+        body.grid_rowconfigure(0, weight=1)
 
-        search_section = tk.Frame(surface, bg=self.bg_dark)
-        search_section.pack(fill=tk.BOTH, expand=True, pady=(18, 0))
+        search_section = tk.Frame(body, bg=self.bg_dark)
+        search_section.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
+        search_section.grid_rowconfigure(4, weight=1)
+        search_section.grid_columnconfigure(0, weight=1)
         tk.Label(
             search_section,
             text="Activity",
             bg=self.bg_dark,
             fg=self.dark_surface_text_color,
             font=("{San Francisco}", 11, "bold")
-        ).pack(anchor=tk.W)
+        ).grid(row=0, column=0, sticky="w")
         tk.Label(
             search_section,
-            text="Tip: You can type an activity directly; saved activities choose their matching attribute automatically.",
+            text="Saved Activities",
             bg=self.bg_dark,
             fg=self.accent_green,
             font=("{San Francisco}", 10),
-            justify=tk.LEFT,
-            wraplength=500
-        ).pack(anchor=tk.W, fill=tk.X, pady=(4, 0))
-        activity_var = tk.StringVar()
+            justify=tk.LEFT
+        ).grid(row=1, column=0, sticky="ew", pady=(4, 0))
         activity_entry = ttk.Entry(search_section, textvariable=activity_var, font=("{San Francisco}", 12))
-        activity_entry.pack(fill=tk.X, pady=(8, 0), ipady=6)
+        activity_entry.grid(row=2, column=0, sticky="ew", pady=(8, 0), ipady=6)
 
         hint_label = tk.Label(
             search_section,
-            text="Suggestions update as you type.",
+            text="",
             bg=self.bg_dark,
             fg=self.accent_green,
             font=("{San Francisco}", 10)
         )
-        hint_label.pack(anchor=tk.W, pady=(6, 0))
+        hint_label.grid(row=3, column=0, sticky="w", pady=(6, 0))
 
-        listbox_frame = tk.Frame(search_section, bg=self.bg_light, height=170)
-        listbox_frame.pack_propagate(False)
-        listbox_frame.pack(pady=(10, 0), fill=tk.BOTH, expand=True)
+        listbox_frame = tk.Frame(search_section, bg=self.bg_light)
+        listbox_frame.grid(row=4, column=0, sticky="nsew", pady=(10, 0))
 
         suggestion_scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL)
         suggestion_list = tk.Listbox(
@@ -2365,95 +2424,24 @@ class LifeXPApp:
             activestyle="none",
             bd=0,
             highlightthickness=0,
+            selectmode=tk.EXTENDED,
             yscrollcommand=suggestion_scrollbar.set
         )
         suggestion_scrollbar.config(command=suggestion_list.yview)
         suggestion_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2, pady=2)
         suggestion_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Nested helper functions are useful when logic belongs only inside one dialog.
-        # This one rebuilds autocomplete suggestions whenever the text changes.
-        def update_suggestions(*args):
-            suggest_after_id[0] = None
-            typed = activity_var.get().strip().lower()
-            selected_attr = attr_var.get()
-            selected_subs = self.data["subcategories"].get(selected_attr, [])
-            selected_subs_set = {sub.lower() for sub in selected_subs}
-            # Suggestions from the selected attribute are listed first. Suggestions from
-            # other attributes are still searchable so typing "Meditation" can switch
-            # the quest to Vitality automatically.
-            other_subs = [
-                sub
-                for sub in self.get_all_subcategories()
-                if sub.lower() not in selected_subs_set
-            ]
-            all_subs = dict.fromkeys(selected_subs + other_subs)
-            owner_map = self.get_subcategory_owner_map()
+        side_panel = tk.Frame(body, bg=self.bg_dark)
+        side_panel.grid(row=0, column=1, sticky="nsew")
+        side_panel.grid_columnconfigure(0, weight=1)
+        side_panel.grid_rowconfigure(1, weight=1)
 
-            suggestion_list.delete(0, tk.END)
-
-            # An exact match hides suggestions and auto-selects the matching attribute.
-            # Partial matches stay visible so the user can click one.
-            exact_matches = [sub for sub in all_subs if sub.lower() == typed]
-            if exact_matches:
-                owning_attr = owner_map.get(exact_matches[0])
-                if owning_attr and attr_var.get() != owning_attr:
-                    attr_var.set(owning_attr)
-                    refresh_category_chips()
-                suggestion_list.insert(tk.END, f"• {exact_matches[0]}")
-                hint_label.config(text="Exact match found.")
-                return
-
-            hits = all_subs if not typed else [sub for sub in all_subs if typed in sub.lower()]
-
-            if hits:
-                for hit in list(hits)[:80]:
-                    # A dot means the suggestion belongs to the currently selected
-                    # attribute. A chevron means choosing it will switch attributes.
-                    owning_attr = owner_map.get(hit, selected_attr)
-                    prefix = "•" if owning_attr == selected_attr else "›"
-                    suggestion_list.insert(tk.END, f"{prefix} {hit}")
-                hint_label.config(text=f"{len(hits)} matching activities")
-            else:
-                hint_label.config(text="No saved activity yet. This will become a new suggestion.")
-
-        suggest_after_id = [None]
-
-        def update_suggestions_debounced(*args):
-            if suggest_after_id[0] is not None:
-                dialog.after_cancel(suggest_after_id[0])
-            suggest_after_id[0] = dialog.after(120, update_suggestions)
-
-        # When the user clicks a suggestion, this handler copies the text into the entry
-        # and switches the selected attribute chip to the suggestion's saved category.
-        def on_suggestion_select(event=None):
-            if suggestion_list.curselection():
-                index = suggestion_list.curselection()[0]
-                selected_text = suggestion_list.get(index)[2:]
-
-                owning_attr = self.get_subcategory_owner_map().get(selected_text)
-                if owning_attr:
-                    attr_var.set(owning_attr)
-                    refresh_category_chips()
-
-                activity_var.set(selected_text)
-                activity_entry.icursor(tk.END)
-
-        # trace_add connects variable changes to code. bind connects listbox selection
-        # events to code. Together they make the autocomplete interactive.
-        activity_var.trace_add("write", update_suggestions_debounced)
-        suggestion_list.bind("<<ListboxSelect>>", on_suggestion_select)
-        suggestion_list.bind("<Double-Button-1>", on_suggestion_select)
-
-        divider = tk.Frame(surface, bg=self.bg_light, height=1)
-        divider.pack(fill=tk.X, pady=(18, 16))
-
-        slider_card = tk.Frame(surface, bg=self.bg_light)
-        slider_card.pack(fill=tk.X)
+        slider_card = tk.Frame(side_panel, bg=self.bg_light)
+        slider_card.grid(row=0, column=0, sticky="ew")
         slider_card.grid_columnconfigure(0, weight=1)
 
         slider_header = tk.Frame(slider_card, bg=self.bg_light)
-        slider_header.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 6))
+        slider_header.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 6))
         slider_header.grid_columnconfigure(0, weight=1)
         tk.Label(
             slider_header,
@@ -2463,7 +2451,6 @@ class LifeXPApp:
             font=("{San Francisco}", 12, "bold")
         ).grid(row=0, column=0, sticky="w")
 
-        difficulty_var = tk.IntVar(value=5)
         val_label = tk.Label(
             slider_header,
             text="5 / 10",
@@ -2473,10 +2460,8 @@ class LifeXPApp:
         )
         val_label.grid(row=0, column=1, sticky="e")
 
-        # The difficulty slider stores a simple 1-10 value. The app multiplies it by 10
-        # to turn difficulty into an XP reward.
-        slider_canvas = tk.Canvas(slider_card, height=58, bg=self.bg_light, highlightthickness=0)
-        slider_canvas.grid(row=1, column=0, sticky="ew", padx=16)
+        slider_canvas = tk.Canvas(slider_card, height=54, bg=self.bg_light, highlightthickness=0)
+        slider_canvas.grid(row=1, column=0, sticky="ew", padx=14)
 
         xp_label = tk.Label(
             slider_card,
@@ -2485,13 +2470,58 @@ class LifeXPApp:
             fg=self.text_color,
             font=("{San Francisco}", 11)
         )
-        xp_label.grid(row=2, column=0, sticky="w", padx=16, pady=(0, 14))
+        xp_label.grid(row=2, column=0, sticky="w", padx=14, pady=(0, 12))
 
-        # This helper updates the difficulty label and color as the slider moves.
-        # The RGB math blends from white to the current theme's accent color.
+        selected_card = tk.Frame(side_panel, bg=self.bg_light)
+        selected_card.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
+        selected_card.grid_columnconfigure(0, weight=1)
+        selected_card.grid_rowconfigure(1, weight=1)
+
+        selected_header = tk.Frame(selected_card, bg=self.bg_light)
+        selected_header.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 6))
+        selected_header.grid_columnconfigure(0, weight=1)
+        selected_title = tk.Label(
+            selected_header,
+            text="Selected Quests",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 12, "bold")
+        )
+        selected_title.grid(row=0, column=0, sticky="w")
+        selected_count_label = tk.Label(
+            selected_header,
+            text="0",
+            bg=self.bg_light,
+            fg=self.accent_green,
+            font=("{San Francisco}", 12, "bold")
+        )
+        selected_count_label.grid(row=0, column=1, sticky="e")
+
+        selected_list_frame = tk.Frame(selected_card, bg=self.bg_light)
+        selected_list_frame.grid(row=1, column=0, sticky="nsew", padx=14)
+        selected_scrollbar = ttk.Scrollbar(selected_list_frame, orient=tk.VERTICAL)
+        selected_list = tk.Listbox(
+            selected_list_frame,
+            font=("{San Francisco}", 10),
+            bg=self.bg_light,
+            fg=self.text_color,
+            selectbackground=self.accent_green,
+            selectforeground=self.bg_dark,
+            activestyle="none",
+            bd=0,
+            highlightthickness=0,
+            yscrollcommand=selected_scrollbar.set
+        )
+        selected_scrollbar.config(command=selected_list.yview)
+        selected_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2, pady=2)
+        selected_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        selected_actions = tk.Frame(selected_card, bg=self.bg_light)
+        selected_actions.grid(row=2, column=0, sticky="ew", padx=14, pady=(8, 12))
+        remove_button = ttk.Button(selected_actions, text="Remove Selected")
+        remove_button.pack(side=tk.LEFT)
+
         def difficulty_color(v):
-            # Difficulty 1 starts almost white, while difficulty 10 lands on the active
-            # reward/accent color. The intermediate values are simple RGB blends.
             ratio = (v - 1) / 9.0
             target_r, target_g, target_b = self._hex_to_rgb(self.accent_green)
             r = int(255 + (target_r - 255) * ratio)
@@ -2500,115 +2530,303 @@ class LifeXPApp:
             return f'#{r:02x}{g:02x}{b:02x}'
 
         def draw_difficulty_slider():
-            # The slider is drawn on a Canvas because Tk's built-in Scale widget is hard
-            # to style nicely. Redrawing from scratch is cheap here because the canvas
-            # only contains a track, ten ticks, two labels, and one thumb.
             slider_canvas.delete("all")
-            width = max(slider_canvas.winfo_width(), 320)
-            left = 18
-            right = width - 18
-            center_y = 22
+            width = max(slider_canvas.winfo_width(), 240)
+            left = 16
+            right = width - 16
+            center_y = 21
             track_height = 8
             value = difficulty_var.get()
             ratio = (value - 1) / 9.0
             thumb_x = left + (right - left) * ratio
             color_hex = difficulty_color(value)
 
-            slider_canvas.create_line(
-                left,
-                center_y,
-                right,
-                center_y,
-                fill=self.bg_dark,
-                width=track_height,
-                capstyle=tk.ROUND
-            )
-            slider_canvas.create_line(
-                left,
-                center_y,
-                thumb_x,
-                center_y,
-                fill=color_hex,
-                width=track_height,
-                capstyle=tk.ROUND
-            )
+            slider_canvas.create_line(left, center_y, right, center_y, fill=self.bg_dark, width=track_height, capstyle=tk.ROUND)
+            slider_canvas.create_line(left, center_y, thumb_x, center_y, fill=color_hex, width=track_height, capstyle=tk.ROUND)
 
             for tick in range(1, 11):
                 tick_ratio = (tick - 1) / 9.0
                 tick_x = left + (right - left) * tick_ratio
-                slider_canvas.create_oval(
-                    tick_x - 2,
-                    center_y - 2,
-                    tick_x + 2,
-                    center_y + 2,
-                    fill=self.text_color if tick > value else self.bg_dark,
-                    outline=""
-                )
+                slider_canvas.create_oval(tick_x - 2, center_y - 2, tick_x + 2, center_y + 2, fill=self.text_color if tick > value else self.bg_dark, outline="")
 
-            slider_canvas.create_oval(
-                thumb_x - 12,
-                center_y - 12,
-                thumb_x + 12,
-                center_y + 12,
-                fill="#FFFFFF",
-                outline=color_hex,
-                width=3
-            )
-            slider_canvas.create_text(left, 46, text="1", fill=self.text_color, font=("{San Francisco}", 9))
-            slider_canvas.create_text(right, 46, text="10", fill=self.text_color, font=("{San Francisco}", 9))
+            slider_canvas.create_oval(thumb_x - 12, center_y - 12, thumb_x + 12, center_y + 12, fill="#FFFFFF", outline=color_hex, width=3)
+            slider_canvas.create_text(left, 45, text="1", fill=self.text_color, font=("{San Francisco}", 9))
+            slider_canvas.create_text(right, 45, text="10", fill=self.text_color, font=("{San Francisco}", 9))
             val_label.config(text=f"{value} / 10", fg=color_hex)
             xp_label.config(text=f"Yields {value * 10} XP")
 
         def set_difficulty_from_event(event):
-            # Mouse x-position becomes a 0..1 ratio along the track, then that ratio is
-            # converted to one of the ten whole-number difficulty values.
-            width = max(slider_canvas.winfo_width(), 320)
-            left = 18
-            right = width - 18
+            width = max(slider_canvas.winfo_width(), 240)
+            left = 16
+            right = width - 16
             ratio = min(1.0, max(0.0, (event.x - left) / (right - left)))
             difficulty_var.set(round(1 + ratio * 9))
             draw_difficulty_slider()
 
-        slider_canvas.bind("<Configure>", lambda event: draw_difficulty_slider())
-        slider_canvas.bind("<Button-1>", set_difficulty_from_event)
-        slider_canvas.bind("<B1-Motion>", set_difficulty_from_event)
+        def suggestion_name_at(index):
+            return suggestion_list.get(index)
 
-        # The save helper validates the dialog, remembers new activity names for future
-        # autocomplete, appends the task, saves data, refreshes the table, and closes.
-        def save():
-            activity_name = activity_var.get().strip()
-            # If the typed activity already exists under another attribute, use that
-            # saved owner even if the debounce timer has not fired yet.
-            attr = self.get_known_activity_owner(activity_name) or attr_var.get()
-            xp = difficulty_var.get() * 10
+        def insert_activity_item(listbox, text, attr=None, use_attr_color=True):
+            listbox.insert(tk.END, text)
+            item_index = listbox.size() - 1
+            color = self.attr_colors.get(attr, self.text_color) if use_attr_color and attr else self.text_color
+            listbox.itemconfig(item_index, foreground=color)
+            return item_index
 
+        def ask_activity_attribute(activity_name):
+            chooser = tk.Toplevel(dialog)
+            chooser.withdraw()
+            chooser.title("Activity Attribute")
+            chooser.configure(bg=self.bg_dark)
+            chooser.transient(dialog)
+            chooser.grab_set()
+
+            selected_attr = tk.StringVar(value=self.attributes[0])
+            surface = tk.Frame(chooser, bg=self.bg_dark)
+            surface.pack(fill=tk.BOTH, expand=True, padx=18, pady=16)
+
+            tk.Label(
+                surface,
+                text="Choose Attribute",
+                bg=self.bg_dark,
+                fg=self.dark_surface_text_color,
+                font=("{San Francisco}", 15, "bold")
+            ).pack(anchor=tk.W)
+            tk.Label(
+                surface,
+                text=activity_name,
+                bg=self.bg_dark,
+                fg=self.accent_green,
+                font=("{San Francisco}", 11)
+            ).pack(anchor=tk.W, pady=(3, 12))
+
+            chip_frame = tk.Frame(surface, bg=self.bg_dark)
+            chip_frame.pack(fill=tk.X)
+            chooser_chips = {}
+
+            def refresh_chooser_chips():
+                for attr, chip in chooser_chips.items():
+                    selected = selected_attr.get() == attr
+                    chip.config(
+                        bg=self.attr_colors[attr] if selected else self.bg_light,
+                        fg=self.attr_text_colors[attr] if selected else self.text_color,
+                        relief=tk.FLAT if selected else tk.GROOVE,
+                        bd=0 if selected else 1
+                    )
+
+            def select_attr(attr):
+                selected_attr.set(attr)
+                refresh_chooser_chips()
+
+            for index, attr in enumerate(self.attributes):
+                chip = tk.Label(
+                    chip_frame,
+                    text=attr,
+                    bg=self.bg_light,
+                    fg=self.text_color,
+                    padx=9,
+                    pady=7,
+                    cursor="hand2",
+                    font=("{San Francisco}", 10, "bold")
+                )
+                chip.grid(row=0, column=index, sticky="ew", padx=(0, 7))
+                chip.bind("<Button-1>", lambda event, selected=attr: select_attr(selected))
+                chooser_chips[attr] = chip
+                chip_frame.grid_columnconfigure(index, weight=1, uniform="new_activity_attr")
+
+            result = {"attribute": None}
+
+            def confirm():
+                result["attribute"] = selected_attr.get()
+                chooser.destroy()
+
+            def cancel():
+                chooser.destroy()
+
+            action_row = tk.Frame(surface, bg=self.bg_dark)
+            action_row.pack(fill=tk.X, pady=(14, 0))
+            ttk.Button(action_row, text="Cancel", command=cancel).pack(side=tk.LEFT)
+            ttk.Button(action_row, text="Use Attribute", style="QuestAccept.TButton", command=confirm).pack(side=tk.RIGHT)
+
+            refresh_chooser_chips()
+            self.show_fitted_window(chooser, min_width=520, min_height=190)
+            chooser.bind("<Return>", lambda event: confirm())
+            chooser.bind("<Escape>", lambda event: cancel())
+            chooser.protocol("WM_DELETE_WINDOW", cancel)
+            dialog.wait_window(chooser)
+            return result["attribute"]
+
+        def refresh_selected_list():
+            selected_list.delete(0, tk.END)
+            for quest in pending_quests:
+                insert_activity_item(
+                    selected_list,
+                    f"{quest['attribute']}  ·  {quest['name']}  ·  {quest['xp']} XP",
+                    quest["attribute"]
+                )
+            count = len(pending_quests)
+            selected_count_label.config(text=str(count))
+            accept_button.config(text=f"Accept {count} Quest{'s' if count != 1 else ''}" if count else "Accept Quest")
+            remove_button.config(state=tk.NORMAL if count else tk.DISABLED)
+
+        def add_pending_quest(activity_name, attr=None, refresh=True, show_error=True):
+            activity_name = activity_name.strip()
             if not activity_name:
-                messagebox.showerror("Hold up, Hero!", "Your quest needs an activity name.", parent=dialog)
-                return
+                if show_error:
+                    messagebox.showerror("Hold up, Hero!", "Your quest needs an activity name.", parent=dialog)
+                return False
 
-            existing_names = {name.lower() for name in self.data["subcategories"][attr]}
-            if activity_name.lower() not in existing_names:
-                self.data["subcategories"][attr].append(activity_name)
-                self._invalidate_subcategory_cache()
+            selected_filter = attr_var.get()
+            fallback_attr = self.attributes[0] if selected_filter == all_filter_label else selected_filter
+            known_owner = self.get_known_activity_owner(activity_name)
+            if attr is None and known_owner is None and selected_filter == all_filter_label:
+                attr = ask_activity_attribute(activity_name)
+                if attr is None:
+                    return False
+            attr = attr or known_owner or fallback_attr
+            xp = difficulty_var.get() * 10
+            for quest in pending_quests:
+                if quest["attribute"] == attr and quest["name"].lower() == activity_name.lower():
+                    quest["xp"] = xp
+                    if refresh:
+                        refresh_selected_list()
+                        hint_label.config(text="Updated selected quest difficulty.")
+                    return True
 
-            self.data["tasks"].append({
+            pending_quests.append({
                 "name": activity_name,
                 "attribute": attr,
                 "subcategory": activity_name,
                 "xp": xp
             })
+            if refresh:
+                refresh_selected_list()
+                hint_label.config(text=f"Added {activity_name}.")
+            return True
 
-            # After the new quest is added to memory, save the JSON file and
-            # refresh the visible table so the UI matches the saved data.
-            self.save_data()
-            self.refresh_task_list()
+        def add_current_to_selection(show_error=True):
+            return add_pending_quest(activity_var.get(), show_error=show_error)
+
+        def add_selected_suggestions():
+            selections = suggestion_list.curselection()
+            if not selections:
+                add_current_to_selection()
+                return
+
+            owner_map = self.get_subcategory_owner_map()
+            added = 0
+            for index in selections:
+                selected_text = suggestion_name_at(index)
+                owning_attr = owner_map.get(selected_text) or attr_var.get()
+                if owning_attr == all_filter_label:
+                    owning_attr = self.attributes[0]
+                if add_pending_quest(selected_text, owning_attr, refresh=False, show_error=False):
+                    added += 1
+            refresh_selected_list()
+            hint_label.config(text=f"Added {added} selected activit{'y' if added == 1 else 'ies'}.")
+
+        def remove_selected_pending():
+            selections = list(selected_list.curselection())
+            if not selections:
+                return
+            for index in reversed(selections):
+                if 0 <= index < len(pending_quests):
+                    pending_quests.pop(index)
+            refresh_selected_list()
+
+        remove_button.config(command=remove_selected_pending)
+
+        def update_suggestions(*args):
+            suggest_after_id[0] = None
+            typed = activity_var.get().strip().lower()
+            selected_filter = attr_var.get()
+            owner_map = self.get_subcategory_owner_map()
+            if selected_filter == all_filter_label:
+                available_subs = self.get_all_subcategories()
+            else:
+                available_subs = sorted(
+                    dict.fromkeys(self.data["subcategories"].get(selected_filter, [])),
+                    key=str.lower
+                )
+
+            suggestion_list.delete(0, tk.END)
+
+            exact_matches = [sub for sub in available_subs if sub.lower() == typed]
+            if exact_matches:
+                owning_attr = owner_map.get(exact_matches[0])
+                if selected_filter != all_filter_label and owning_attr and attr_var.get() != owning_attr:
+                    attr_var.set(owning_attr)
+                    refresh_category_chips()
+
+            hits = available_subs if not typed else [sub for sub in available_subs if typed in sub.lower()]
+            if hits:
+                for hit in list(hits)[:80]:
+                    owning_attr = owner_map.get(hit, selected_filter)
+                    insert_activity_item(
+                        suggestion_list,
+                        hit,
+                        owning_attr,
+                        use_attr_color=selected_filter != all_filter_label
+                    )
+                hint_label.config(text=f"{len(hits)} matching activities")
+            else:
+                hint_label.config(text="New activity")
+
+        def update_suggestions_debounced(*args):
             if suggest_after_id[0] is not None:
                 dialog.after_cancel(suggest_after_id[0])
-                suggest_after_id[0] = None
-            dialog.destroy()
+            suggest_after_id[0] = dialog.after(120, update_suggestions)
+
+        activity_var.trace_add("write", update_suggestions_debounced)
+        def toggle_suggestion_selection(event):
+            index = suggestion_list.nearest(event.y)
+            if index < 0 or index >= suggestion_list.size():
+                return "break"
+            if index in suggestion_list.curselection():
+                suggestion_list.selection_clear(index)
+            else:
+                suggestion_list.selection_set(index)
+                suggestion_list.activate(index)
+            return "break"
+
+        suggestion_list.bind("<Command-Button-1>", toggle_suggestion_selection)
+        suggestion_list.bind("<Control-Button-1>", toggle_suggestion_selection)
+        suggestion_list.bind("<Double-Button-1>", lambda event: add_selected_suggestions())
+        slider_canvas.bind("<Configure>", lambda event: draw_difficulty_slider())
+        slider_canvas.bind("<Button-1>", set_difficulty_from_event)
+        slider_canvas.bind("<B1-Motion>", set_difficulty_from_event)
+
+        action_row = tk.Frame(surface, bg=self.bg_dark)
+        action_row.pack(fill=tk.X, pady=(14, 0))
+        ttk.Button(action_row, text="Cancel", command=lambda: close_dialog()).pack(side=tk.LEFT)
+        ttk.Button(action_row, text="Add Typed", command=add_current_to_selection).pack(side=tk.RIGHT, padx=(8, 0))
+        ttk.Button(action_row, text="Add Selected", command=add_selected_suggestions).pack(side=tk.RIGHT, padx=(8, 0))
+        accept_button = ttk.Button(action_row, text="Accept Quest", style="QuestAccept.TButton")
+        accept_button.pack(side=tk.RIGHT)
+
+        def save():
+            if not pending_quests and not add_current_to_selection(show_error=True):
+                return
+
+            subcategories_changed = False
+            for quest in pending_quests:
+                attr = quest["attribute"]
+                existing_names = {name.lower() for name in self.data["subcategories"][attr]}
+                if quest["name"].lower() not in existing_names:
+                    self.data["subcategories"][attr].append(quest["name"])
+                    subcategories_changed = True
+                self.data["tasks"].append(quest.copy())
+
+            if subcategories_changed:
+                self._invalidate_subcategory_cache()
+
+            added_count = len(pending_quests)
+            self.save_data()
+            self.refresh_task_list()
+            close_dialog()
 
             cx, cy = self.get_center()
-            self.play_floating_text("✨ QUEST ADDED", self.accent_green, cx, cy)
+            self.play_floating_text(f"✨ {added_count} QUEST{'S' if added_count != 1 else ''} ADDED", self.accent_green, cx, cy)
 
         def close_dialog():
             if suggest_after_id[0] is not None:
@@ -2616,15 +2834,12 @@ class LifeXPApp:
                 suggest_after_id[0] = None
             dialog.destroy()
 
-        action_row = tk.Frame(surface, bg=self.bg_dark)
-        action_row.pack(fill=tk.X, pady=(18, 0))
-        ttk.Button(action_row, text="Cancel", command=close_dialog).pack(side=tk.LEFT)
-        ttk.Button(action_row, text="Accept Quest", style="QuestAccept.TButton", command=save).pack(side=tk.RIGHT)
-
+        accept_button.config(command=save)
         refresh_category_chips()
+        refresh_selected_list()
         update_suggestions()
         draw_difficulty_slider()
-        self.show_fitted_window(dialog, min_width=560, min_height=660)
+        self.show_fitted_window(dialog, min_width=860, min_height=540)
         dialog.grab_set()
         activity_entry.focus_set()
         dialog.bind("<Return>", lambda event: save())
@@ -2635,9 +2850,14 @@ class LifeXPApp:
         """Allows editing a currently selected task."""
         # Most task actions begin by reading the selected row. If nothing is selected,
         # the method exits early or shows a helpful message.
-        index = self.get_selected_task_index("Select a quest from the log to edit it.")
-        if index is None:
+        indices = self.get_selected_task_indices("Select a quest from the log to edit it.")
+        if not indices:
             return
+        if len(indices) > 1:
+            self.edit_multiple_tasks_dialog(indices)
+            return
+
+        index = indices[0]
 
         task = self.data["tasks"][index]
 
@@ -2680,47 +2900,172 @@ class LifeXPApp:
         cx, cy = self.get_center()
         self.play_floating_text("✏️ QUEST UPDATED", "#88C0D0", cx, cy)
 
+    def edit_multiple_tasks_dialog(self, indices):
+        """Opens a compact batch editor for multiple selected quests."""
+        dialog = tk.Toplevel(self.root)
+        dialog.withdraw()
+        dialog.title("Edit Quests")
+        dialog.configure(bg=self.bg_dark)
+        dialog.transient(self.root)
+
+        surface = tk.Frame(dialog, bg=self.bg_dark)
+        surface.pack(fill=tk.BOTH, expand=True, padx=22, pady=18)
+
+        tk.Label(
+            surface,
+            text=f"Edit {len(indices)} Quests",
+            bg=self.bg_dark,
+            fg=self.dark_surface_text_color,
+            font=("{San Francisco}", 20, "bold")
+        ).pack(anchor=tk.W)
+
+        table = tk.Frame(surface, bg=self.bg_light)
+        table.pack(fill=tk.BOTH, expand=True, pady=(14, 0))
+        table.grid_columnconfigure(1, weight=1)
+
+        headers = [("XP", 0), ("Activity", 1), ("Attribute", 2)]
+        for text, column in headers:
+            tk.Label(
+                table,
+                text=text,
+                bg=self.bg_light,
+                fg=self.text_color,
+                font=("{San Francisco}", 11, "bold")
+            ).grid(row=0, column=column, sticky="w", padx=10, pady=(10, 6))
+
+        row_controls = []
+        for row, index in enumerate(indices, start=1):
+            task = self.data["tasks"][index]
+            xp_var = tk.StringVar(value=str(task["xp"]))
+            name_var = tk.StringVar(value=task["name"])
+            attr_var = tk.StringVar(value=task["attribute"])
+
+            xp_entry = ttk.Entry(table, textvariable=xp_var, width=8, font=("{San Francisco}", 11))
+            xp_entry.grid(row=row, column=0, sticky="ew", padx=(10, 6), pady=5, ipady=3)
+
+            name_entry = ttk.Entry(table, textvariable=name_var, font=("{San Francisco}", 11))
+            name_entry.grid(row=row, column=1, sticky="ew", padx=6, pady=5, ipady=3)
+
+            attr_combo = ttk.Combobox(table, textvariable=attr_var, values=self.attributes, state="readonly", width=16, font=("{San Francisco}", 11))
+            attr_combo.grid(row=row, column=2, sticky="ew", padx=(6, 10), pady=5, ipady=3)
+
+            row_controls.append({
+                "index": index,
+                "xp_var": xp_var,
+                "name_var": name_var,
+                "attr_var": attr_var
+            })
+
+        def save_edits():
+            updates = []
+            for row in row_controls:
+                name = row["name_var"].get().strip()
+                attr = row["attr_var"].get()
+                try:
+                    xp = int(row["xp_var"].get())
+                except ValueError:
+                    messagebox.showerror("Error", "XP must be numeric for every selected quest.", parent=dialog)
+                    return
+
+                if not name:
+                    messagebox.showerror("Error", "Quest names cannot be blank.", parent=dialog)
+                    return
+                if attr not in self.attributes:
+                    messagebox.showerror("Error", "Every quest needs a valid attribute.", parent=dialog)
+                    return
+                if xp < 1:
+                    messagebox.showerror("Error", "XP must be at least 1 for every selected quest.", parent=dialog)
+                    return
+
+                updates.append((row["index"], name, attr, xp))
+
+            subcategories_changed = False
+            for index, name, attr, xp in updates:
+                if not 0 <= index < len(self.data["tasks"]):
+                    self.refresh_task_list()
+                    messagebox.showinfo("Notice", "The quest list changed. Please reopen the editor.", parent=dialog)
+                    return
+
+                self.data["tasks"][index]["attribute"] = attr
+                self.data["tasks"][index]["name"] = name
+                self.data["tasks"][index]["subcategory"] = name
+                self.data["tasks"][index]["xp"] = xp
+
+                existing_names = {saved_name.lower() for saved_name in self.data["subcategories"][attr]}
+                if name.lower() not in existing_names:
+                    self.data["subcategories"][attr].append(name)
+                    subcategories_changed = True
+
+            if subcategories_changed:
+                self._invalidate_subcategory_cache()
+
+            self.save_data()
+            self.refresh_task_list()
+            dialog.destroy()
+
+            cx, cy = self.get_center()
+            self.play_floating_text(f"✏️ {len(updates)} QUESTS UPDATED", "#88C0D0", cx, cy)
+
+        def close_dialog():
+            dialog.destroy()
+
+        action_row = tk.Frame(surface, bg=self.bg_dark)
+        action_row.pack(fill=tk.X, pady=(14, 0))
+        ttk.Button(action_row, text="Cancel", command=close_dialog).pack(side=tk.LEFT)
+        ttk.Button(action_row, text="Save Changes", style="QuestAccept.TButton", command=save_edits).pack(side=tk.RIGHT)
+
+        self.show_fitted_window(dialog, min_width=720, min_height=320)
+        dialog.grab_set()
+        dialog.bind("<Return>", lambda event: save_edits())
+        dialog.bind("<Escape>", lambda event: close_dialog())
+        dialog.protocol("WM_DELETE_WINDOW", close_dialog)
+
     def delete_task(self):
         """Removes a task from memory without giving XP."""
-        index = self.get_selected_task_index()
-        if index is None:
+        indices = self.get_selected_task_indices()
+        if not indices:
             return
 
         # Deleting asks for confirmation because it removes the quest without XP. After
         # deletion, the saved file and visible table are both refreshed.
-        if messagebox.askyesno("Abandon Quest?", "Are you sure you want to abandon this quest? No XP will be awarded.", parent=self.root):
-            del self.data["tasks"][index]
+        count = len(indices)
+        quest_word = "quest" if count == 1 else "quests"
+        if messagebox.askyesno("Abandon Quest?", f"Are you sure you want to abandon {count} {quest_word}? No XP will be awarded.", parent=self.root):
+            for index in sorted(indices, reverse=True):
+                del self.data["tasks"][index]
             self.save_data()
             self.refresh_task_list()
 
             cx, cy = self.get_center()
-            self.play_floating_text("💀 QUEST ABANDONED", "#BF616A", cx, cy)
-            self.play_particles("#BF616A", cx, cy, count=15, gravity=True)
+            self.play_floating_text(f"💀 {count} QUEST{'S' if count != 1 else ''} ABANDONED", "#BF616A", cx, cy)
+            self.play_particles("#BF616A", cx, cy, count=min(32, 10 + (count * 5)), gravity=True)
 
     def complete_task(self):
         """The main gameplay loop: Finish task -> Grant XP -> Save History -> Redraw."""
-        index = self.get_selected_task_index("Select a quest to complete it.")
-        if index is None:
+        indices = self.get_selected_task_indices("Select a quest to complete it.")
+        if not indices:
             return
 
-        # Completing a quest removes it from active tasks, then reads its attribute and
-        # XP reward so the character can gain progress.
-        task = self.data["tasks"].pop(index)
-        attr = task["attribute"]
-        xp_gain = task["xp"]
+        tasks = [self.data["tasks"][index] for index in indices]
+        level_events = []
+        total_xp_gain = 0
 
-        level_events = self.gain_xp(attr, xp_gain)
+        for task in tasks:
+            attr = task["attribute"]
+            xp_gain = task["xp"]
+            total_xp_gain += xp_gain
+            level_events.extend(self.gain_xp(attr, xp_gain))
 
-        # History records are separate from active tasks. They preserve what happened,
-        # which attribute gained XP, and when completion occurred.
-        completion_record = {
-            "name": task["name"],
-            "attribute": attr,
-            "subcategory": task.get("subcategory", "General"),
-            "xp": xp_gain,
-            "date": datetime.now().isoformat()
-        }
-        self.data["history"].append(completion_record)
+            self.data["history"].append({
+                "name": task["name"],
+                "attribute": attr,
+                "subcategory": task.get("subcategory", "General"),
+                "xp": xp_gain,
+                "date": datetime.now().isoformat()
+            })
+
+        for index in sorted(indices, reverse=True):
+            self.data["tasks"].pop(index)
 
         self.save_data()
         self.refresh_task_list()
@@ -2732,7 +3077,8 @@ class LifeXPApp:
         # play_floating_text() now returns the final popup box position. The XP particles
         # use that box as their source so sparks appear to come from the reward label,
         # while physics=True keeps the older gravity/falling feel.
-        popup_box = self.play_floating_text(f"+{xp_gain} XP!", "#EBCB8B", cx, cy, size=30, duration_steps=XP_POPUP_STEPS, fade_steps=XP_POPUP_FADE_STEPS)
+        popup_text = f"+{total_xp_gain} XP!" if len(tasks) == 1 else f"{len(tasks)} QUESTS  +{total_xp_gain} XP!"
+        popup_box = self.play_floating_text(popup_text, "#EBCB8B", cx, cy, size=30, duration_steps=XP_POPUP_STEPS, fade_steps=XP_POPUP_FADE_STEPS)
         self.play_firework_particles("#EBCB8B", popup_box, count=34, palette=["#EBCB8B", "#FFD166", "#F59E0B", "#F97316"], physics=True)
 
         if level_events or rank_event:
