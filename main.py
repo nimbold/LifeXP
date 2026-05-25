@@ -1054,6 +1054,162 @@ class LifeXPApp:
             self.configure_quest_surface(button, palette["fill"], palette["fg"])
             button.master.configure(bg=palette["border"])
 
+    def create_summary_timeframe_button(self, parent, label, timeframe):
+        """Builds one segmented Chronicles timeframe control."""
+        button = tk.Label(
+            parent,
+            text=label,
+            bg=self.bg_dark,
+            fg=self.dark_surface_text_color,
+            font=("{San Francisco}", 10, "bold"),
+            padx=14,
+            pady=8,
+            cursor="hand2"
+        )
+        button._summary_timeframe = timeframe
+        button.bind("<Button-1>", lambda event, value=timeframe: self.show_summary(value))
+        button.pack(side=tk.LEFT, padx=2, pady=2)
+        return button
+
+    def update_summary_timeframe_buttons(self):
+        """Highlights the active Chronicles timeframe segment."""
+        if not hasattr(self, "summary_timeframe_buttons"):
+            return
+
+        for button in self.summary_timeframe_buttons:
+            if not button.winfo_exists():
+                continue
+            active = button._summary_timeframe == self.current_summary_timeframe
+            fill = self.accent_green if active else self.bg_dark
+            fg = self.accent_text_color if active else self.dark_surface_text_color
+            button.configure(bg=fill, fg=fg)
+
+    def draw_summary_graph(self, totals_by_attribute):
+        """Draws the Chronicles XP distribution chart."""
+        if not hasattr(self, "summary_graph_canvas"):
+            return
+
+        canvas = self.summary_graph_canvas
+        canvas.delete("all")
+        width = max(1, canvas.winfo_width())
+        height = max(1, canvas.winfo_height())
+        if width <= 1 or height <= 1:
+            width = max(320, canvas.winfo_reqwidth())
+            height = max(160, canvas.winfo_reqheight())
+
+        canvas.configure(bg=self.bg_light)
+        pad_x = 34
+        top = 20
+        bottom = 42
+        chart_h = max(30, height - top - bottom)
+        baseline = top + chart_h
+        muted = self._blend_color(self.text_color, self.bg_light, 0.58)
+        grid = self._blend_color(self.bg_dark, self.bg_light, 0.55)
+
+        for index in range(4):
+            y = top + (chart_h * index / 3)
+            canvas.create_line(pad_x, y, width - 18, y, fill=grid)
+
+        max_xp = max([1] + [totals_by_attribute.get(attr, 0) for attr in self.attributes])
+        available_w = max(1, width - pad_x - 28)
+        slot_w = available_w / len(self.attributes)
+        bar_w = max(18, min(46, slot_w * 0.48))
+
+        if max_xp <= 1 and not any(totals_by_attribute.values()):
+            canvas.create_text(
+                width / 2,
+                height / 2,
+                text="No XP logged for this chapter.",
+                fill=muted,
+                font=("{San Francisco}", 12, "bold")
+            )
+
+        for index, attr in enumerate(self.attributes):
+            xp = totals_by_attribute.get(attr, 0)
+            center_x = pad_x + (slot_w * index) + (slot_w / 2)
+            bar_h = 4 if xp <= 0 else max(8, (xp / max_xp) * (chart_h - 8))
+            left = center_x - (bar_w / 2)
+            right = center_x + (bar_w / 2)
+            top_y = baseline - bar_h
+            canvas.create_rectangle(left, top_y, right, baseline, fill=self.attr_colors[attr], outline="")
+            canvas.create_text(center_x, top_y - 10, text=str(xp), fill=self.text_color, font=("{San Francisco}", 9, "bold"))
+            canvas.create_text(center_x, baseline + 18, text=attr[:3].upper(), fill=muted, font=("{San Francisco}", 8, "bold"))
+
+    def improve_color_contrast(self, color, background, minimum_ratio=4.5):
+        """Pushes a color toward black or white until it is readable on a surface."""
+        if self.get_contrast_ratio(color, background) >= minimum_ratio:
+            return color
+
+        black = "#000000"
+        white = "#FFFFFF"
+        target = white if self.get_contrast_ratio(white, background) > self.get_contrast_ratio(black, background) else black
+        for step in range(1, 11):
+            candidate = self._blend_color(color, target, step / 10.0)
+            if self.get_contrast_ratio(candidate, background) >= minimum_ratio:
+                return candidate
+        return target
+
+    def get_summary_combo_colors(self, background=None):
+        """Returns combo tag colors that remain readable on the ledger background."""
+        background = background or self.bg_dark
+        return {
+            "combo_blue": self.improve_color_contrast(self.attr_colors["Intelligence"], background),
+            "combo_red": self.improve_color_contrast(self.attr_colors["Strength"], background),
+            "combo_gold": self.improve_color_contrast(self.attr_colors["Agility"], background)
+        }
+
+    def configure_summary_body_tags(self, body):
+        """Applies the shared Chronicles text tags to one ledger body."""
+        combo_colors = self.get_summary_combo_colors(body.cget("bg"))
+        body.tag_configure("bold", font=("{San Francisco}", 9, "bold"))
+        body.tag_configure("combo_blue", foreground=combo_colors["combo_blue"], font=("{San Francisco}", 10, "bold"))
+        body.tag_configure("combo_red", foreground=combo_colors["combo_red"], font=("{San Francisco}", 10, "bold"))
+        body.tag_configure("combo_gold", foreground=combo_colors["combo_gold"], font=("{San Francisco}", 10, "bold"))
+
+    def find_summary_body_under_pointer(self):
+        """Returns the Chronicles entry list currently under the mouse pointer."""
+        if not hasattr(self, "summary_cards"):
+            return None
+
+        try:
+            pointer_x = self.root.winfo_pointerx()
+            pointer_y = self.root.winfo_pointery()
+        except tk.TclError:
+            return None
+
+        for widgets in self.summary_cards.values():
+            body = widgets["body"]
+            if not body.winfo_exists():
+                continue
+            left = body.winfo_rootx()
+            top = body.winfo_rooty()
+            right = left + body.winfo_width()
+            bottom = top + body.winfo_height()
+            if left <= pointer_x < right and top <= pointer_y < bottom:
+                return body
+        return None
+
+    def scroll_summary_body(self, event):
+        """Scrolls the Chronicles entry list under the pointer."""
+        body = self.find_summary_body_under_pointer()
+        if body is None:
+            return None
+
+        if getattr(event, "num", None) == 4:
+            units = -1
+        elif getattr(event, "num", None) == 5:
+            units = 1
+        else:
+            delta = getattr(event, "delta", 0)
+            if delta == 0:
+                return None
+            units = -1 if delta > 0 else 1
+            if abs(delta) >= 120:
+                units *= max(1, abs(delta) // 120)
+
+        body.yview_scroll(units * 4, "units")
+        return "break"
+
     def run_quest_action(self, button, command, strong_feedback=False):
         """Runs a quest action after immediate tactile UI feedback."""
         if strong_feedback and not self.task_tree.selection():
@@ -1504,89 +1660,189 @@ class LifeXPApp:
         page = tk.Frame(self.tab_summary, bg=self.bg_dark)
         page.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
 
-        # The Summary tab starts with three timeframe buttons. Each button passes a
-        # different string into show_summary().
+        # Chronicles uses a dashboard layout: chapter controls at the top, three quick
+        # readouts, an XP distribution chart, and RPG attribute activity ledgers.
         control_frame = tk.Frame(page, bg=self.bg_light)
-        control_frame.pack(fill=tk.X, pady=(0, 14))
+        control_frame.pack(fill=tk.X, pady=(0, 12))
+        control_frame.grid_columnconfigure(0, weight=1)
+        self.summary_light_surfaces = [control_frame]
+        self.summary_dark_surfaces = []
+        self.summary_primary_labels = []
+        self.summary_secondary_labels = []
 
-        tk.Label(
-            control_frame,
+        heading_frame = tk.Frame(control_frame, bg=self.bg_light)
+        heading_frame.grid(row=0, column=0, sticky=tk.W, padx=16, pady=(14, 12))
+        self.summary_light_surfaces.append(heading_frame)
+
+        heading_label = tk.Label(
+            heading_frame,
             text="Chronicles",
             bg=self.bg_light,
             fg=self.text_color,
-            font=("{San Francisco}", 16, "bold")
-        ).pack(side=tk.LEFT, padx=16, pady=14)
+            font=("{San Francisco}", 18, "bold")
+        )
+        heading_label.pack(anchor=tk.W)
+        self.summary_primary_labels.append(heading_label)
 
-        button_row = tk.Frame(control_frame, bg=self.bg_light)
-        button_row.pack(side=tk.RIGHT, padx=12, pady=10)
+        subtitle_label = tk.Label(
+            heading_frame,
+            text="Chapter records by attribute, quest chain, and XP gained",
+            bg=self.bg_light,
+            fg=self._blend_color(self.text_color, self.bg_light, 0.28),
+            font=("{San Francisco}", 10)
+        )
+        subtitle_label.pack(anchor=tk.W, pady=(3, 0))
+        self.summary_secondary_labels.append(subtitle_label)
 
-        ttk.Button(button_row, text="Daily", command=lambda: self.show_summary("daily")).pack(side=tk.LEFT, padx=4)
-        ttk.Button(button_row, text="Weekly", command=lambda: self.show_summary("weekly")).pack(side=tk.LEFT, padx=4)
-        ttk.Button(button_row, text="Monthly", command=lambda: self.show_summary("monthly")).pack(side=tk.LEFT, padx=4)
+        button_row = tk.Frame(control_frame, bg=self.bg_dark)
+        button_row.grid(row=0, column=1, sticky=tk.E, padx=14, pady=14)
+        self.summary_dark_surfaces.append(button_row)
+        self.summary_timeframe_buttons = [
+            self.create_summary_timeframe_button(button_row, "Daily", "daily"),
+            self.create_summary_timeframe_button(button_row, "Weekly", "weekly"),
+            self.create_summary_timeframe_button(button_row, "Monthly", "monthly")
+        ]
 
-        # Chronicles now has one large report area. Inside it, each attribute gets a
-        # colored square that lists completed activity subcategories for the timeframe.
         report_frame = tk.Frame(page, bg=self.bg_light)
         report_frame.pack(fill=tk.BOTH, expand=True)
+        self.summary_light_surfaces.append(report_frame)
 
         # Here we create a dynamic title label for the report, which will update 
         # based on the selected timeframe (Daily, Weekly, Monthly).
         self.summary_title_label = tk.Label(
             report_frame,
             text="",
-            font=("{San Francisco}", 15, "bold"),
+            font=("{San Francisco}", 13, "bold"),
             bg=self.bg_light,
-            fg=self.text_color
+            fg=self._blend_color(self.text_color, self.bg_light, 0.18)
         )
-        self.summary_title_label.pack(fill=tk.X, padx=16, pady=(14, 8))
+        self.summary_title_label.pack(anchor=tk.W, padx=16, pady=(14, 8))
 
-        # This container frame holds the summary cards side-by-side. We use a grid
-        # layout inside it to evenly distribute one card per RPG attribute.
+        metrics_frame = tk.Frame(report_frame, bg=self.bg_light)
+        metrics_frame.pack(fill=tk.X, padx=12, pady=(0, 12))
+        self.summary_light_surfaces.append(metrics_frame)
+        self.summary_metric_labels = {}
+        for column, (key, label) in enumerate((
+            ("activities", "Activity Types"),
+            ("quests", "Quests Cleared"),
+            ("xp", "XP Banked")
+        )):
+            metrics_frame.columnconfigure(column, weight=1, uniform="summary_metrics")
+            metric = tk.Frame(metrics_frame, bg=self.bg_dark)
+            metric.grid(row=0, column=column, sticky=tk.EW, padx=4)
+            self.summary_dark_surfaces.append(metric)
+            metric_label = tk.Label(
+                metric,
+                text=label,
+                bg=self.bg_dark,
+                fg=self._blend_color(self.dark_surface_text_color, self.bg_dark, 0.34),
+                font=("{San Francisco}", 9, "bold")
+            )
+            metric_label.pack(anchor=tk.W, padx=12, pady=(9, 0))
+            self.summary_secondary_labels.append(metric_label)
+            value = tk.Label(
+                metric,
+                text="0",
+                bg=self.bg_dark,
+                fg=self.dark_surface_text_color,
+                font=("{San Francisco}", 18, "bold")
+            )
+            value.pack(anchor=tk.W, padx=12, pady=(1, 9))
+            self.summary_metric_labels[key] = value
+
+        graph_frame = tk.Frame(report_frame, bg=self.bg_light)
+        graph_frame.pack(fill=tk.X, padx=16, pady=(0, 12))
+        self.summary_light_surfaces.append(graph_frame)
+        graph_title = tk.Label(
+            graph_frame,
+            text="Attribute XP Distribution",
+            bg=self.bg_light,
+            fg=self.text_color,
+            font=("{San Francisco}", 12, "bold")
+        )
+        graph_title.pack(anchor=tk.W, pady=(0, 6))
+        self.summary_primary_labels.append(graph_title)
+        self.summary_graph_canvas = tk.Canvas(graph_frame, height=132, bg=self.bg_light, highlightthickness=0)
+        self.summary_graph_canvas.pack(fill=tk.X)
+        self.summary_attribute_totals = {attr: 0 for attr in self.attributes}
+        self.summary_graph_canvas.bind("<Configure>", lambda event: self.draw_summary_graph(self.summary_attribute_totals))
+        self.root.bind_all("<MouseWheel>", self.scroll_summary_body)
+        self.root.bind_all("<Button-4>", self.scroll_summary_body)
+        self.root.bind_all("<Button-5>", self.scroll_summary_body)
+
+        # This container frame holds the summary cards side-by-side. Each attribute
+        # keeps its RPG color, but the readable text now sits on the shared surface.
         cards_frame = tk.Frame(report_frame, bg=self.bg_light)
-        cards_frame.pack(fill=tk.X, padx=12, pady=(0, 14))
+        cards_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 14))
+        self.summary_light_surfaces.append(cards_frame)
 
         self.summary_cards = {}
+        cards_frame.rowconfigure(0, weight=1, minsize=150)
         for i, attr in enumerate(self.attributes):
             cards_frame.columnconfigure(i, weight=1, uniform="summary_cards")
 
             card = tk.Frame(
                 cards_frame,
-                bg=self.attr_colors[attr],
+                bg=self.bg_dark,
                 width=150,
-                height=150,
                 highlightthickness=0
             )
-            card.grid(row=0, column=i, padx=5, pady=5)
-            card.grid_propagate(False)
+            card.grid(row=0, column=i, sticky=tk.NSEW, padx=5, pady=5)
+            card.columnconfigure(0, weight=1)
+            card.rowconfigure(3, weight=1)
+            self.summary_dark_surfaces.append(card)
+
+            strip = tk.Frame(card, bg=self.attr_colors[attr], height=5)
+            strip.grid(row=0, column=0, sticky=tk.EW)
 
             title = tk.Label(
                 card,
                 text=attr,
-                font=("{San Francisco}", 11, "bold"),
-                bg=self.attr_colors[attr],
-                fg=self.attr_text_colors[attr]
+                font=("{San Francisco}", 10, "bold"),
+                bg=self.bg_dark,
+                fg=self.attr_colors[attr]
             )
-            title.pack(fill=tk.X, padx=6, pady=(8, 2))
+            title.grid(row=1, column=0, sticky=tk.W, padx=10, pady=(9, 0))
+
+            meta = tk.Label(
+                card,
+                text="0 types | 0 XP",
+                font=("{San Francisco}", 9),
+                bg=self.bg_dark,
+                fg=self._blend_color(self.dark_surface_text_color, self.bg_dark, 0.34)
+            )
+            meta.grid(row=2, column=0, sticky=tk.W, padx=10, pady=(1, 5))
+
+            body_frame = tk.Frame(card, bg=self.bg_dark)
+            body_frame.grid(row=3, column=0, sticky=tk.NSEW, padx=0, pady=(0, 8))
+            body_frame.columnconfigure(0, weight=1)
+            body_frame.rowconfigure(0, weight=1)
+            self.summary_dark_surfaces.append(body_frame)
 
             body = tk.Text(
-                card,
+                body_frame,
                 wrap=tk.WORD,
+                height=4,
                 font=("{San Francisco}", 9),
-                bg=self.attr_colors[attr],
-                fg=self.attr_text_colors[attr],
+                bg=self.bg_dark,
+                fg=self.dark_surface_text_color,
                 bd=0,
                 highlightthickness=0,
-                padx=6,
-                pady=4
+                padx=10,
+                pady=6
             )
-            body.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 6))
-            body.tag_configure("bold", font=("{San Francisco}", 9, "bold"))
-            body.tag_configure("combo_blue", foreground="#1E5BFF", font=("{San Francisco}", 10, "bold"))
-            body.tag_configure("combo_red", foreground="#8B0000", font=("{San Francisco}", 10, "bold"))
-            body.tag_configure("combo_gold", foreground="#8A5A00", font=("{San Francisco}", 10, "bold"))
+            body.grid(row=0, column=0, sticky=tk.NSEW)
+            self.configure_summary_body_tags(body)
             body.config(state=tk.DISABLED)
 
-            self.summary_cards[attr] = {"title": title, "body": body}
+            self.summary_cards[attr] = {
+                "card": card,
+                "strip": strip,
+                "title": title,
+                "meta": meta,
+                "body_frame": body_frame,
+                "body": body
+            }
 
         self.show_summary("daily")
 
@@ -1861,11 +2117,38 @@ class LifeXPApp:
         self.refresh_quest_action_buttons()
 
         if hasattr(self, "summary_title_label"):
-            self.summary_title_label.configure(bg=self.bg_light, fg=self.text_color)
+            if hasattr(self, "summary_light_surfaces"):
+                for surface in self.summary_light_surfaces:
+                    surface.configure(bg=self.bg_light)
+            if hasattr(self, "summary_dark_surfaces"):
+                for surface in self.summary_dark_surfaces:
+                    surface.configure(bg=self.bg_dark)
+            if hasattr(self, "summary_primary_labels"):
+                for label in self.summary_primary_labels:
+                    label.configure(bg=self.bg_light, fg=self.text_color)
+            if hasattr(self, "summary_secondary_labels"):
+                for label in self.summary_secondary_labels:
+                    dark_parent = str(label.master.cget("bg")) == self.bg_dark
+                    bg = self.bg_dark if dark_parent else self.bg_light
+                    fg_base = self.dark_surface_text_color if dark_parent else self.text_color
+                    label.configure(bg=bg, fg=self._blend_color(fg_base, bg, 0.34 if dark_parent else 0.28))
+            self.summary_title_label.configure(bg=self.bg_light, fg=self._blend_color(self.text_color, self.bg_light, 0.18))
+            if hasattr(self, "summary_timeframe_buttons"):
+                self.update_summary_timeframe_buttons()
+            if hasattr(self, "summary_metric_labels"):
+                for value in self.summary_metric_labels.values():
+                    value.configure(bg=self.bg_dark)
+                    value.configure(fg=self.dark_surface_text_color)
+            if hasattr(self, "summary_graph_canvas"):
+                self.draw_summary_graph(getattr(self, "summary_attribute_totals", {attr: 0 for attr in self.attributes}))
             for attr, widgets in self.summary_cards.items():
-                widgets["title"].master.configure(bg=self.attr_colors[attr])
-                widgets["title"].configure(bg=self.attr_colors[attr], fg=self.attr_text_colors[attr])
-                widgets["body"].configure(bg=self.attr_colors[attr], fg=self.attr_text_colors[attr])
+                widgets["card"].configure(bg=self.bg_dark)
+                widgets["strip"].configure(bg=self.attr_colors[attr])
+                widgets["title"].configure(bg=self.bg_dark, fg=self.attr_colors[attr])
+                widgets["meta"].configure(bg=self.bg_dark, fg=self._blend_color(self.dark_surface_text_color, self.bg_dark, 0.34))
+                widgets["body_frame"].configure(bg=self.bg_dark)
+                widgets["body"].configure(bg=self.bg_dark, fg=self.dark_surface_text_color)
+                self.configure_summary_body_tags(widgets["body"])
 
         if hasattr(self, "trophies_frame"):
             self.rebuild_trophy_room()
@@ -3595,23 +3878,35 @@ class LifeXPApp:
 
         unique_activities = sum(len(activities) for activities in activity_by_attribute.values())
         self.summary_title_label.config(
-            text=f"{title}  |  {unique_activities} activity types  |  {completed_tasks} quests  |  {total_xp} XP"
+            text=title
         )
+        if hasattr(self, "summary_metric_labels"):
+            self.summary_metric_labels["activities"].config(text=str(unique_activities))
+            self.summary_metric_labels["quests"].config(text=str(completed_tasks))
+            self.summary_metric_labels["xp"].config(text=f"{total_xp} XP")
+
+        self.update_summary_timeframe_buttons()
+        self.summary_attribute_totals = {
+            attr: sum(details["xp"] for details in activities.values())
+            for attr, activities in activity_by_attribute.items()
+        }
+        self.draw_summary_graph(self.summary_attribute_totals)
 
         # Each card is a small independent report. It is temporarily unlocked, filled
         # with that attribute's activities, and then locked again.
         for attr in self.attributes:
-            body = self.summary_cards[attr]["body"]
+            widgets = self.summary_cards[attr]
+            body = widgets["body"]
             body.config(state=tk.NORMAL)
             body.delete(1.0, tk.END)
 
             activities = activity_by_attribute[attr]
             attr_xp = sum(details["xp"] for details in activities.values())
+            widgets["meta"].config(text=f"{len(activities)} types | {attr_xp} XP")
 
             if not activities:
-                body.insert(tk.END, "No activity yet.")
+                body.insert(tk.END, "No activity logged in this chapter.")
             else:
-                body.insert(tk.END, f"{len(activities)} types | {attr_xp} XP\n\n")
                 sorted_activities = sorted(
                     activities.items(),
                     key=lambda item: (-item[1]["count"], -item[1]["xp"], item[0])
