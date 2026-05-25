@@ -78,6 +78,8 @@ class LifeXPApp:
         self.popup_sequence = 0
         self.rank_up_animation_token = 0
         self.active_particle_widgets = []
+        self.particle_widget_pool = []
+        self.particle_widget_token = 0
         self.tab_hover_active = False
         self.tab_hover_token = 0
         self.tab_change_token = 0
@@ -3885,20 +3887,46 @@ class LifeXPApp:
             fade_start_ratio=0.45
         )
 
+    def acquire_particle_widget(self, color, size):
+        """Returns a reusable particle widget plus its current ownership token."""
+        self.particle_widget_token += 1
+        token = self.particle_widget_token
+
+        if self.particle_widget_pool:
+            widget = self.particle_widget_pool.pop()
+            widget.configure(bg=color, width=size, height=size)
+        else:
+            widget = tk.Frame(self.root, bg=color, width=size, height=size)
+
+        widget._lifexp_particle_token = token
+        self.register_particle_widget(widget)
+        return widget, token
+
     def register_particle_widget(self, widget):
         """Tracks live particle widgets and caps burst load during rapid rewards."""
-        self.active_particle_widgets.append(widget)
+        if widget not in self.active_particle_widgets:
+            self.active_particle_widgets.append(widget)
         while len(self.active_particle_widgets) > MAX_ACTIVE_PARTICLES:
             old_widget = self.active_particle_widgets.pop(0)
-            if old_widget.winfo_exists():
-                old_widget.destroy()
+            self.release_particle_widget(old_widget)
 
-    def destroy_particle_widget(self, widget):
-        """Destroys a particle widget and removes it from the live budget."""
+    def release_particle_widget(self, widget, token=None):
+        """Hides a particle widget and returns it to the reusable pool."""
+        if token is not None and getattr(widget, "_lifexp_particle_token", None) != token:
+            return
         if widget in self.active_particle_widgets:
             self.active_particle_widgets.remove(widget)
         if widget.winfo_exists():
-            widget.destroy()
+            widget.place_forget()
+            widget._lifexp_particle_token = None
+            if len(self.particle_widget_pool) < MAX_ACTIVE_PARTICLES:
+                self.particle_widget_pool.append(widget)
+            else:
+                widget.destroy()
+
+    def destroy_particle_widget(self, widget, token=None):
+        """Compatibility wrapper for particle cleanup."""
+        self.release_particle_widget(widget, token)
 
     def play_floating_text(self, text, color, x, y, size=18, shake=False, duration_steps=70, fade_steps=20, trailing_icon=None):
         """Creates retro text that pops, floats upwards, and fades out."""
@@ -4090,12 +4118,12 @@ class LifeXPApp:
             life = random.randint(*life_range)
             p_color = random.choice(active_palette)
 
-            particle = tk.Frame(self.root, bg=p_color, width=size, height=size)
+            particle, token = self.acquire_particle_widget(p_color, size)
             particle.place(x=start_x, y=start_y)
-            self.register_particle_widget(particle)
 
             particles.append({
                 "widget": particle,
+                "token": token,
                 "x": float(start_x),
                 "y": float(start_y),
                 "dx": speed * math.cos(angle),
@@ -4122,7 +4150,10 @@ class LifeXPApp:
             for particle in particles:
                 if particle["life"] > 0:
                     widget = particle["widget"]
-                    if not widget.winfo_exists():
+                    if (
+                        not widget.winfo_exists()
+                        or getattr(widget, "_lifexp_particle_token", None) != particle["token"]
+                    ):
                         particle["life"] = -1
                         continue
 
@@ -4152,7 +4183,7 @@ class LifeXPApp:
                     particle["life"] -= 1
                     active = True
                 elif particle["life"] == 0:
-                    self.destroy_particle_widget(particle["widget"])
+                    self.destroy_particle_widget(particle["widget"], particle["token"])
                     particle["life"] -= 1
 
             if active:
@@ -4176,14 +4207,14 @@ class LifeXPApp:
 
         for _ in range(count):
             p_color = random.choice(rainbow_colors) if rainbow else color
-            p = tk.Frame(self.root, bg=p_color, width=8, height=8)
+            p, token = self.acquire_particle_widget(p_color, 8)
             p.place(x=start_x, y=start_y)
-            self.register_particle_widget(p)
 
             dx = random.randint(-12, 12)
             dy = random.randint(-12, 12)
             particles.append({
                 "widget": p,
+                "token": token,
                 "x": start_x,
                 "y": start_y,
                 "dx": dx,
@@ -4208,7 +4239,10 @@ class LifeXPApp:
             for p in particles:
                 if p["life"] > 0:
                     w = p["widget"]
-                    if not w.winfo_exists():
+                    if (
+                        not w.winfo_exists()
+                        or getattr(w, "_lifexp_particle_token", None) != p["token"]
+                    ):
                         p["life"] = -1
                         continue
                     next_x = p["x"] + p["dx"]
@@ -4231,7 +4265,7 @@ class LifeXPApp:
 
                     active = True
                 elif p["life"] == 0:
-                    self.destroy_particle_widget(p["widget"])
+                    self.destroy_particle_widget(p["widget"], p["token"])
                     p["life"] -= 1
 
             if active:
