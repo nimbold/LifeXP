@@ -1983,11 +1983,9 @@ class LifeXPApp:
 
         return normalized
 
-    def load_data(self):
-        """Reads saved data. Includes complex migrations to prevent crashes."""
-        # default_data is the safe starting shape for the app. It documents what keys
-        # the rest of the program expects to exist.
-        default_data = {
+    def get_default_data(self):
+        """Returns a fresh, complete save-data structure."""
+        return {
             "user_info": {"name": "Hero", "avatar_seed": random.randint(1, 100000), "theme": self.current_theme_name},
             "stats": {attr: {"level": 1, "xp": 0} for attr in self.attributes},
             "tasks": [],
@@ -2068,6 +2066,91 @@ class LifeXPApp:
             }
         }
 
+    def get_attribute_rename_map(self):
+        """Returns old attribute names and their current equivalents."""
+        return {
+            "Dexterity": "Agility",
+            "Faith": "Charisma",
+            "Vigor": "Vitality",
+            "Constitution": "Vitality"
+        }
+
+    def migrate_renamed_attributes(self, data):
+        """Updates old save-file attribute names in place."""
+        rename_map = self.get_attribute_rename_map()
+
+        if isinstance(data.get("stats"), dict):
+            for old, new in rename_map.items():
+                if old in data["stats"]:
+                    data["stats"][new] = data["stats"].pop(old)
+
+        if isinstance(data.get("tasks"), list):
+            for task in data["tasks"]:
+                if isinstance(task, dict) and task.get("attribute") in rename_map:
+                    task["attribute"] = rename_map[task["attribute"]]
+
+        if isinstance(data.get("history"), list):
+            for record in data["history"]:
+                if isinstance(record, dict) and record.get("attribute") in rename_map:
+                    record["attribute"] = rename_map[record["attribute"]]
+
+        if isinstance(data.get("subcategories"), dict):
+            for old, new in rename_map.items():
+                if old not in data["subcategories"]:
+                    continue
+                old_subs = data["subcategories"].pop(old)
+                if not isinstance(old_subs, list):
+                    continue
+                data["subcategories"].setdefault(new, [])
+                existing_names = {name.lower() for name in data["subcategories"][new] if isinstance(name, str)}
+                for sub in old_subs:
+                    if isinstance(sub, str) and sub.lower() not in existing_names:
+                        data["subcategories"][new].append(sub)
+                        existing_names.add(sub.lower())
+
+        if isinstance(data.get("trophies"), list):
+            for index, trophy_name in enumerate(data["trophies"]):
+                if not isinstance(trophy_name, str):
+                    continue
+                for old, new in rename_map.items():
+                    if trophy_name.startswith(f"{old} "):
+                        data["trophies"][index] = trophy_name.replace(old, new, 1)
+                        break
+
+    def parse_history_date(self, date_value):
+        """Parses saved history dates into comparable local naive datetimes."""
+        record_date = datetime.fromisoformat(date_value)
+        if record_date.tzinfo is not None:
+            record_date = record_date.astimezone().replace(tzinfo=None)
+        return record_date
+
+    def add_saved_subcategory(self, attr, name):
+        """Adds an activity suggestion if it is new for an attribute."""
+        if attr not in self.attributes:
+            return False
+        name = str(name).strip()
+        if not name:
+            return False
+
+        self.data["subcategories"].setdefault(attr, [])
+        existing_names = {
+            saved_name.lower()
+            for saved_name in self.data["subcategories"][attr]
+            if isinstance(saved_name, str)
+        }
+        if name.lower() in existing_names:
+            return False
+
+        self.data["subcategories"][attr].append(name)
+        self._invalidate_subcategory_cache()
+        return True
+
+    def load_data(self):
+        """Reads saved data. Includes complex migrations to prevent crashes."""
+        # default_data is the safe starting shape for the app. It documents what keys
+        # the rest of the program expects to exist.
+        default_data = self.get_default_data()
+
         # If the save file exists, the app tries to read it. If it does not exist, the
         # method skips to the final return and starts from defaults.
         if os.path.exists(self.data_file):
@@ -2079,64 +2162,9 @@ class LifeXPApp:
                     if not isinstance(data, dict):
                         return default_data
 
-                    # Migration code lets old save files survive renamed attributes. The map says
-                    # which old names should become which new names.
-                    rename_map = {
-                        "Dexterity": "Agility",
-                        "Faith": "Charisma",
-                        "Vigor": "Vitality",
-                        "Constitution": "Vitality"
-                    }
-
-                    # The next three blocks apply the rename map to stats, active tasks, and history.
-                    # Each block checks that the section exists before touching it.
-                    if isinstance(data.get("stats"), dict):
-                        for old, new in rename_map.items():
-                            if old in data["stats"]:
-                                data["stats"][new] = data["stats"].pop(old)
-
-                    if isinstance(data.get("tasks"), list):
-                        for task in data["tasks"]:
-                            if not isinstance(task, dict):
-                                continue
-                            if task.get("attribute") in rename_map:
-                                task["attribute"] = rename_map[task["attribute"]]
-
-                    if isinstance(data.get("history"), list):
-                        for record in data["history"]:
-                            if not isinstance(record, dict):
-                                continue
-                            if record.get("attribute") in rename_map:
-                                record["attribute"] = rename_map[record["attribute"]]
-
-                    # Subcategories are stored under attribute names too. When an
-                    # attribute is renamed, we move its activity suggestions to the new
-                    # name and avoid adding duplicates if both old and new keys exist.
                     if not isinstance(data.get("subcategories"), dict):
                         data["subcategories"] = default_data["subcategories"]
-
-                    if "subcategories" in data:
-                        for old, new in rename_map.items():
-                            if old in data["subcategories"]:
-                                old_subs = data["subcategories"].pop(old)
-                                if not isinstance(old_subs, list):
-                                    continue
-                                data["subcategories"].setdefault(new, [])
-                                for sub in old_subs:
-                                    if sub not in data["subcategories"][new]:
-                                        data["subcategories"][new].append(sub)
-
-                    # Trophy names are plain strings like "Vitality Bronze", not nested
-                    # dictionaries. That means migration needs to rewrite the text prefix
-                    # so old trophies still appear as unlocked after the rename.
-                    if isinstance(data.get("trophies"), list):
-                        for index, trophy_name in enumerate(data["trophies"]):
-                            if not isinstance(trophy_name, str):
-                                continue
-                            for old, new in rename_map.items():
-                                if trophy_name.startswith(f"{old} "):
-                                    data["trophies"][index] = trophy_name.replace(old, new, 1)
-                                    break
+                    self.migrate_renamed_attributes(data)
 
                     if isinstance(data.get("user_info"), dict) and data["user_info"].get("name") == "Ashen One":
                         data["user_info"]["name"] = "Hero"
@@ -2182,6 +2210,11 @@ class LifeXPApp:
             except (TypeError, ValueError):
                 level = default_stats[attr]["level"]
                 xp = default_stats[attr]["xp"]
+            xp_needed = self.get_xp_needed(level)
+            while xp >= xp_needed:
+                xp -= xp_needed
+                level += 1
+                xp_needed = self.get_xp_needed(level)
             normalized[attr] = {"level": level, "xp": xp}
         return normalized
 
@@ -2224,7 +2257,7 @@ class LifeXPApp:
                 continue
             date_value = record.get("date")
             try:
-                datetime.fromisoformat(date_value)
+                self.parse_history_date(date_value)
                 xp = max(0, int(record.get("xp", 0)))
             except (TypeError, ValueError):
                 continue
@@ -2827,17 +2860,9 @@ class LifeXPApp:
             if not pending_quests and not add_current_to_selection(show_error=True):
                 return
 
-            subcategories_changed = False
             for quest in pending_quests:
-                attr = quest["attribute"]
-                existing_names = {name.lower() for name in self.data["subcategories"][attr]}
-                if quest["name"].lower() not in existing_names:
-                    self.data["subcategories"][attr].append(quest["name"])
-                    subcategories_changed = True
+                self.add_saved_subcategory(quest["attribute"], quest["name"])
                 self.data["tasks"].append(quest.copy())
-
-            if subcategories_changed:
-                self._invalidate_subcategory_cache()
 
             added_count = len(pending_quests)
             self.save_data()
@@ -2909,10 +2934,7 @@ class LifeXPApp:
         self.data["tasks"][index]["name"] = new_name
         self.data["tasks"][index]["subcategory"] = new_name
         self.data["tasks"][index]["xp"] = new_xp
-        existing_names = {name.lower() for name in self.data["subcategories"][task_attr]}
-        if new_name.lower() not in existing_names:
-            self.data["subcategories"][task_attr].append(new_name)
-            self._invalidate_subcategory_cache()
+        self.add_saved_subcategory(task_attr, new_name)
         self.save_data()
         self.refresh_task_list()
 
@@ -2998,7 +3020,6 @@ class LifeXPApp:
 
                 updates.append((row["index"], name, attr, xp))
 
-            subcategories_changed = False
             for index, name, attr, xp in updates:
                 if not 0 <= index < len(self.data["tasks"]):
                     self.refresh_task_list()
@@ -3009,14 +3030,7 @@ class LifeXPApp:
                 self.data["tasks"][index]["name"] = name
                 self.data["tasks"][index]["subcategory"] = name
                 self.data["tasks"][index]["xp"] = xp
-
-                existing_names = {saved_name.lower() for saved_name in self.data["subcategories"][attr]}
-                if name.lower() not in existing_names:
-                    self.data["subcategories"][attr].append(name)
-                    subcategories_changed = True
-
-            if subcategories_changed:
-                self._invalidate_subcategory_cache()
+                self.add_saved_subcategory(attr, name)
 
             self.save_data()
             self.refresh_task_list()
@@ -3557,7 +3571,7 @@ class LifeXPApp:
         # so each colored card can tell one part of the story.
         for record in self.data["history"]:
             try:
-                record_date = datetime.fromisoformat(record["date"])
+                record_date = self.parse_history_date(record["date"])
             except (TypeError, ValueError):
                 continue
 
