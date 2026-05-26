@@ -22,6 +22,24 @@ You add quests, complete them for XP, level up five attributes, unlock trophies,
 - `Chronicles`: review completed activity.
 - `Settings`: change themes, display options, and reset progress.
 
+## Screenshots
+
+### Quest Log
+
+<img src="screenshots/quest-log.png" alt="Quest Log tab" width="700">
+
+### Character Info
+
+<img src="screenshots/character-info.png" alt="Character Info tab" width="700">
+
+### Chronicles
+
+<img src="screenshots/chronicles.png" alt="Chronicles tab" width="700">
+
+### Settings
+
+<img src="screenshots/settings.png" alt="Settings tab" width="700">
+
 ## Run
 
 Requirements:
