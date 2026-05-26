@@ -1561,9 +1561,10 @@ class LifeXPApp:
             delta = getattr(event, "delta", 0)
             if delta == 0:
                 return None
-            units = -1 if delta > 0 else 1
             if abs(delta) >= 120:
-                units *= max(1, abs(delta) // 120)
+                units = -(delta // 120)
+            else:
+                units = -delta
 
         scroll_target.yview_scroll(units * speed_units, "units")
         return "break"
@@ -1580,6 +1581,16 @@ class LifeXPApp:
 
     def create_modern_scrollbar(self, parent, target, width=14):
         """Creates a slim canvas scrollbar wired to a y-scrollable widget."""
+        live_scrollbars = []
+        for existing in self.modern_scrollbars:
+            canvas = existing["canvas"]
+            try:
+                if canvas.winfo_exists():
+                    live_scrollbars.append(existing)
+            except tk.TclError:
+                continue
+        self.modern_scrollbars = live_scrollbars
+
         state = {"first": 0.0, "last": 1.0}
         scrollbar = tk.Canvas(parent, width=width, bg=self.bg_light, highlightthickness=0, cursor="sb_v_double_arrow")
 
@@ -2275,7 +2286,12 @@ class LifeXPApp:
         page = tk.Frame(self.tab_settings, bg=self.bg_dark)
         page.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
 
-        self.settings_canvas = tk.Canvas(page, bg=self.bg_dark, highlightthickness=0)
+        self.settings_canvas = tk.Canvas(
+            page,
+            bg=self.bg_dark,
+            highlightthickness=0,
+            yscrollincrement=16
+        )
         settings_scrollbar = ttk.Scrollbar(
             page,
             orient=tk.VERTICAL,
@@ -3173,9 +3189,24 @@ class LifeXPApp:
         # Saving is the reverse of loading: json.dump() converts the in-memory app data
         # into readable text and writes it to disk.
         temp_file = f"{self.data_file}.tmp"
-        with open(temp_file, 'w', encoding="utf-8") as f:
-            json.dump(self.data, f, indent=4)
-        os.replace(temp_file, self.data_file)
+        try:
+            with open(temp_file, 'w', encoding="utf-8") as f:
+                json.dump(self.data, f, indent=4)
+            os.replace(temp_file, self.data_file)
+        except OSError as exc:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except OSError:
+                pass
+            try:
+                messagebox.showerror(
+                    "Save Failed",
+                    f"LifeXP could not save your progress:\n\n{exc}",
+                    parent=self.root
+                )
+            except tk.TclError:
+                print(f"LifeXP could not save your progress: {exc}")
 
     # ==============================================================================
     # GROUP C - GAME ENGINE / LOGIC AND ACTIONS
@@ -3272,7 +3303,7 @@ class LifeXPApp:
         activity_var = tk.StringVar()
         difficulty_var = tk.IntVar(value=5)
         pending_quests = []
-        suggest_after_id = [None]
+        suggest_after_id = None
         # pending_quests is a temporary queue. Nothing is saved until the user clicks
         # Accept Quest, so the dialog can add and remove draft quests freely.
 
@@ -3696,7 +3727,8 @@ class LifeXPApp:
         def update_suggestions(*args):
             # Autocomplete is rebuilt from saved activities. The All filter searches
             # every attribute; a specific attribute searches only that attribute's list.
-            suggest_after_id[0] = None
+            nonlocal suggest_after_id
+            suggest_after_id = None
             typed = activity_var.get().strip().lower()
             selected_filter = attr_var.get()
             owner_map = self.get_subcategory_owner_map()
@@ -3734,9 +3766,10 @@ class LifeXPApp:
         def update_suggestions_debounced(*args):
             # Debouncing waits briefly after typing before refreshing suggestions. This
             # avoids rebuilding the list on every single keystroke during fast typing.
-            if suggest_after_id[0] is not None:
-                dialog.after_cancel(suggest_after_id[0])
-            suggest_after_id[0] = dialog.after(120, update_suggestions)
+            nonlocal suggest_after_id
+            if suggest_after_id is not None:
+                dialog.after_cancel(suggest_after_id)
+            suggest_after_id = dialog.after(120, update_suggestions)
 
         activity_var.trace_add("write", update_suggestions_debounced)
         def toggle_suggestion_selection(event):
@@ -3784,9 +3817,10 @@ class LifeXPApp:
             self.play_floating_text(f"✨ {added_count} QUEST{'S' if added_count != 1 else ''} ADDED", self.accent_green, cx, cy)
 
         def close_dialog():
-            if suggest_after_id[0] is not None:
-                dialog.after_cancel(suggest_after_id[0])
-                suggest_after_id[0] = None
+            nonlocal suggest_after_id
+            if suggest_after_id is not None:
+                dialog.after_cancel(suggest_after_id)
+                suggest_after_id = None
             dialog.destroy()
 
         accept_button.config(command=save)
@@ -4460,7 +4494,7 @@ class LifeXPApp:
         if current_tiers is not self._last_rendered_tiers:
             if self._trophy_room_built:
                 self.rebuild_trophy_room()
-            current_tiers = self._last_rendered_tiers
+            current_tiers = self._last_rendered_tiers or current_tiers
 
         # Each attribute refreshes its label, progress bar, and every trophy icon tied
         # to that attribute.
@@ -4832,6 +4866,18 @@ class LifeXPApp:
         def animate(frame=0):
             if token != self.rank_up_animation_token:
                 return
+            try:
+                widgets_alive = (
+                    self.root.winfo_exists()
+                    and self.app_title_label.winfo_exists()
+                    and self.app_level_delta_label.winfo_exists()
+                    and self.user_name_label.winfo_exists()
+                    and self.user_level_label.winfo_exists()
+                )
+            except tk.TclError:
+                return
+            if not widgets_alive:
+                return
 
             if frame <= frames:
                 phase = frame / float(frames)
@@ -5054,6 +5100,11 @@ class LifeXPApp:
         started_at = time.perf_counter()
 
         def animate(step=0, current_size=display_size, w=popup_w, h=popup_h):
+            try:
+                if not popup.winfo_exists():
+                    return
+            except tk.TclError:
+                return
             if step <= total_steps:
                 progress = min(step / float(total_steps), 1.0)
                 new_size = display_size
