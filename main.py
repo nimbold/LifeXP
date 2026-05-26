@@ -164,7 +164,7 @@ class LifeXPApp:
                 "bg_light": "#2C2C2E",
                 "accent": "#30D158",
                 "text": "#F2F2F7",
-                "card_text": "#111111",
+                "card_text": "#F2F2F7",
                 "attr_colors": {
                     "Strength": "#FF453A",
                     "Agility": "#FF9F0A",
@@ -179,7 +179,7 @@ class LifeXPApp:
                 "bg_light": "#3B4252",
                 "accent": "#A3BE8C",
                 "text": "#ECEFF4",
-                "card_text": "#2E3440",
+                "card_text": "#ECEFF4",
                 "attr_colors": {
                     "Strength": "#BF616A",
                     "Agility": "#D08770",
@@ -194,7 +194,7 @@ class LifeXPApp:
                 "bg_light": "#44475A",
                 "accent": "#BD93F9",
                 "text": "#F8F8F2",
-                "card_text": "#282A36",
+                "card_text": "#F8F8F2",
                 "attr_colors": {
                     "Strength": "#FF5555",
                     "Agility": "#FFB86C",
@@ -209,7 +209,7 @@ class LifeXPApp:
                 "bg_light": "#313244",
                 "accent": "#A6E3A1",
                 "text": "#CDD6F4",
-                "card_text": "#1E1E2E",
+                "card_text": "#CDD6F4",
                 "attr_colors": {
                     "Strength": "#F38BA8",
                     "Agility": "#FAB387",
@@ -224,7 +224,7 @@ class LifeXPApp:
                 "bg_light": "#3C3836",
                 "accent": "#B8BB26",
                 "text": "#EBDBB2",
-                "card_text": "#282828",
+                "card_text": "#EBDBB2",
                 "attr_colors": {
                     "Strength": "#FB4934",
                     "Agility": "#FE8019",
@@ -239,7 +239,7 @@ class LifeXPApp:
                 "bg_light": "#24283B",
                 "accent": "#7AA2F7",
                 "text": "#C0CAF5",
-                "card_text": "#1A1B26",
+                "card_text": "#C0CAF5",
                 "attr_colors": {
                     "Strength": "#F7768E",
                     "Agility": "#FF9E64",
@@ -254,13 +254,103 @@ class LifeXPApp:
                 "bg_light": "#073642",
                 "accent": "#859900",
                 "text": "#EEE8D5",
-                "card_text": "#002B36",
+                "card_text": "#EEE8D5",
                 "attr_colors": {
                     "Strength": "#DC322F",
                     "Agility": "#CB4B16",
                     "Intelligence": "#268BD2",
                     "Charisma": "#D33682",
                     "Vitality": "#859900"
+                }
+            },
+            "OLED Black": {
+                "description": "True-black AMOLED mode with bright readable accents.",
+                "bg_dark": "#000000",
+                "bg_light": "#050505",
+                "accent": "#00E676",
+                "text": "#F5F5F5",
+                "card_text": "#F5F5F5",
+                "attr_colors": {
+                    "Strength": "#FF5252",
+                    "Agility": "#FFB74D",
+                    "Intelligence": "#40C4FF",
+                    "Charisma": "#E040FB",
+                    "Vitality": "#00E676"
+                }
+            },
+            "GitHub Light": {
+                "description": "Familiar bright GitHub-style workspace palette.",
+                "bg_dark": "#F6F8FA",
+                "bg_light": "#FFFFFF",
+                "accent": "#0969DA",
+                "text": "#24292F",
+                "card_text": "#24292F",
+                "attr_colors": {
+                    "Strength": "#CF222E",
+                    "Agility": "#BC4C00",
+                    "Intelligence": "#0969DA",
+                    "Charisma": "#8250DF",
+                    "Vitality": "#1A7F37"
+                }
+            },
+            "One Dark": {
+                "description": "Popular Atom-inspired dark coding palette.",
+                "bg_dark": "#21252B",
+                "bg_light": "#282C34",
+                "accent": "#61AFEF",
+                "text": "#ABB2BF",
+                "card_text": "#ABB2BF",
+                "attr_colors": {
+                    "Strength": "#E06C75",
+                    "Agility": "#D19A66",
+                    "Intelligence": "#61AFEF",
+                    "Charisma": "#C678DD",
+                    "Vitality": "#98C379"
+                }
+            },
+            "Monokai Pro": {
+                "description": "Classic saturated editor palette with warm contrast.",
+                "bg_dark": "#2D2A2E",
+                "bg_light": "#403E41",
+                "accent": "#A9DC76",
+                "text": "#FCFCFA",
+                "card_text": "#FCFCFA",
+                "attr_colors": {
+                    "Strength": "#FF6188",
+                    "Agility": "#FC9867",
+                    "Intelligence": "#78DCE8",
+                    "Charisma": "#AB9DF2",
+                    "Vitality": "#A9DC76"
+                }
+            },
+            "Rose Pine Moon": {
+                "description": "Muted rose-toned night palette with soft contrast.",
+                "bg_dark": "#232136",
+                "bg_light": "#2A273F",
+                "accent": "#C4A7E7",
+                "text": "#E0DEF4",
+                "card_text": "#E0DEF4",
+                "attr_colors": {
+                    "Strength": "#EB6F92",
+                    "Agility": "#F6C177",
+                    "Intelligence": "#9CCFD8",
+                    "Charisma": "#C4A7E7",
+                    "Vitality": "#A3BE8C"
+                }
+            },
+            "Everforest Dark": {
+                "description": "Earthy low-glare forest palette.",
+                "bg_dark": "#2D353B",
+                "bg_light": "#343F44",
+                "accent": "#A7C080",
+                "text": "#D3C6AA",
+                "card_text": "#D3C6AA",
+                "attr_colors": {
+                    "Strength": "#E67E80",
+                    "Agility": "#E69875",
+                    "Intelligence": "#7FBBB3",
+                    "Charisma": "#D699B6",
+                    "Vitality": "#A7C080"
                 }
             }
         }
@@ -293,6 +383,25 @@ class LifeXPApp:
 
         candidates = ["#FFFFFF", "#F4F7FF", "#111827", "#000000"]
         return max(candidates, key=lambda color: self.get_contrast_ratio(color, background))
+
+    def get_action_color(self, role):
+        """Returns semantic action colors that stay distinct across themes."""
+        action_colors = {
+            "accept": self.attr_colors["Intelligence"],
+            "complete": self.attr_colors["Vitality"],
+            "edit": self.attr_colors["Agility"],
+            "abandon": self.attr_colors["Strength"],
+            "danger": self.attr_colors["Strength"]
+        }
+        return action_colors[role]
+
+    def get_action_text_color(self, background):
+        """Returns readable text for a colored action control."""
+        return self.get_readable_text_color(background, "#0F172A")
+
+    def get_action_hover_color(self, background):
+        """Returns a visible hover color for a colored action control."""
+        return self._blend_color(background, "#FFFFFF", 0.18)
 
     def scaled_font_size(self, base_size):
         """Scales a hard-coded font size from the user's base preference."""
@@ -405,16 +514,19 @@ class LifeXPApp:
             selectbackground=[('readonly', self.accent_green)],
             selectforeground=[('readonly', self.accent_text_color)]
         )
-        self.style.configure('QuestAccept.TButton', background="#FFFFFF", foreground="#1D1D1F", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
-        self.style.map('QuestAccept.TButton', background=[('active', '#E5E5EA')], foreground=[('active', '#1D1D1F')])
-        self.style.configure('QuestComplete.TButton', background="#34C759", foreground="#0B2A12", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
-        self.style.map('QuestComplete.TButton', background=[('active', '#30D158')], foreground=[('active', '#0B2A12')])
-        self.style.configure('QuestEdit.TButton', background="#FFCC00", foreground="#2A2100", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
-        self.style.map('QuestEdit.TButton', background=[('active', '#FFD60A')], foreground=[('active', '#2A2100')])
-        self.style.configure('QuestAbandon.TButton', background="#FF3B30", foreground="#FFFFFF", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
-        self.style.map('QuestAbandon.TButton', background=[('active', '#FF453A')], foreground=[('active', '#FFFFFF')])
-        self.style.configure('Danger.TButton', background="#FF3B30", foreground="#FFFFFF", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
-        self.style.map('Danger.TButton', background=[('active', '#FF453A')], foreground=[('active', '#FFFFFF')])
+        action_button_styles = {
+            "QuestAccept.TButton": self.get_action_color("accept"),
+            "QuestComplete.TButton": self.get_action_color("complete"),
+            "QuestEdit.TButton": self.get_action_color("edit"),
+            "QuestAbandon.TButton": self.get_action_color("abandon"),
+            "Danger.TButton": self.get_action_color("danger")
+        }
+        for style_name, background in action_button_styles.items():
+            foreground = self.get_action_text_color(background)
+            active_background = self.get_action_hover_color(background)
+            active_foreground = self.get_action_text_color(active_background)
+            self.style.configure(style_name, background=background, foreground=foreground, font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
+            self.style.map(style_name, background=[('active', active_background)], foreground=[('active', active_foreground)])
 
         self.style.configure('TLabelframe', background=self.bg_dark, foreground=self.accent_green, font=self.ui_font(12, 'bold'))
         self.style.configure('TLabelframe.Label', background=self.bg_dark, foreground=self.accent_green)
@@ -1096,49 +1208,45 @@ class LifeXPApp:
 
     def get_quest_action_palette(self, role):
         """Returns compact button colors for the quest action rail."""
-        vitality = self.attr_colors["Vitality"]
-        strength = self.attr_colors["Strength"]
-        agility = self.attr_colors["Agility"]
-        accept = self.accent_green
-        dark_text = "#0F172A"
-
-        def button_text(background):
-            return dark_text if self.get_contrast_ratio(dark_text, background) >= 4.5 else self.get_readable_text_color(background)
+        accept = self.get_action_color("accept")
+        vitality = self.get_action_color("complete")
+        agility = self.get_action_color("edit")
+        strength = self.get_action_color("abandon")
 
         palettes = {
             "accept": {
                 "fill": self._blend_color(accept, "#FFFFFF", 0.35),
-                "fg": button_text(self._blend_color(accept, "#FFFFFF", 0.35)),
+                "fg": self.get_action_text_color(self._blend_color(accept, "#FFFFFF", 0.35)),
                 "accent": accept,
                 "hover": accept,
-                "hover_fg": button_text(accept),
+                "hover_fg": self.get_action_text_color(accept),
                 "border": accept,
                 "glow": accept
             },
             "complete": {
                 "fill": self._blend_color(vitality, "#FFFFFF", 0.35),
-                "fg": button_text(self._blend_color(vitality, "#FFFFFF", 0.35)),
+                "fg": self.get_action_text_color(self._blend_color(vitality, "#FFFFFF", 0.35)),
                 "accent": vitality,
                 "hover": vitality,
-                "hover_fg": button_text(vitality),
+                "hover_fg": self.get_action_text_color(vitality),
                 "border": vitality,
                 "glow": vitality
             },
             "edit": {
                 "fill": self._blend_color(agility, "#FFFFFF", 0.35),
-                "fg": button_text(self._blend_color(agility, "#FFFFFF", 0.35)),
+                "fg": self.get_action_text_color(self._blend_color(agility, "#FFFFFF", 0.35)),
                 "accent": agility,
                 "hover": agility,
-                "hover_fg": button_text(agility),
+                "hover_fg": self.get_action_text_color(agility),
                 "border": agility,
                 "glow": agility
             },
             "abandon": {
                 "fill": self._blend_color(strength, "#FFFFFF", 0.35),
-                "fg": button_text(self._blend_color(strength, "#FFFFFF", 0.35)),
+                "fg": self.get_action_text_color(self._blend_color(strength, "#FFFFFF", 0.35)),
                 "accent": strength,
                 "hover": strength,
-                "hover_fg": button_text(strength),
+                "hover_fg": self.get_action_text_color(strength),
                 "border": strength,
                 "glow": strength
             }
@@ -1353,6 +1461,11 @@ class LifeXPApp:
             if self.get_contrast_ratio(candidate, background) >= minimum_ratio:
                 return candidate
         return target
+
+    def get_attribute_text_color(self, attr, background=None):
+        """Returns an attribute color adjusted for use as text."""
+        background = background or self.bg_light
+        return self.improve_color_contrast(self.attr_colors[attr], background)
 
     def get_summary_combo_colors(self, background=None):
         """Returns combo tag colors that remain readable on the ledger background."""
@@ -3370,7 +3483,7 @@ class LifeXPApp:
         def insert_activity_item(listbox, text, attr=None, use_attr_color=True):
             listbox.insert(tk.END, text)
             item_index = listbox.size() - 1
-            color = self.attr_colors.get(attr, self.text_color) if use_attr_color and attr else self.text_color
+            color = self.get_attribute_text_color(attr, self.bg_light) if use_attr_color and attr else self.text_color
             listbox.itemconfig(item_index, foreground=color)
             return item_index
 
