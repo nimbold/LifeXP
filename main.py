@@ -426,6 +426,8 @@ class LifeXPApp:
 
     def coerce_bool(self, value, default=True):
         """Normalizes saved boolean-like values without treating 'False' as true."""
+        # JSON or hand-edited saves might store booleans as true/false, "true"/"false",
+        # or 1/0. This helper turns those common forms back into real Python booleans.
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
@@ -679,6 +681,8 @@ class LifeXPApp:
 
     def rescale_widget_tree(self, widget):
         """Scales already-created tk widget fonts from their original sizes."""
+        # The first time a widget is resized, remember its original font. Later changes
+        # scale from that original value instead of repeatedly scaling an already-scaled font.
         try:
             font_value = widget.cget("font")
         except tk.TclError:
@@ -702,6 +706,8 @@ class LifeXPApp:
                 pass
 
         if isinstance(widget, tk.Text):
+            # Text widgets can have styled ranges called tags. Each tag may have its own
+            # font, so the tags need the same "remember original, then scale" treatment.
             for tag in widget.tag_names():
                 try:
                     tag_font = widget.tag_cget(tag, "font")
@@ -1115,6 +1121,8 @@ class LifeXPApp:
         chronicle = "#EBCB8B"
         settings = "#A3BE8C"
 
+        # The small helper functions below draw simple shapes into a PhotoImage. They
+        # work like a tiny pixel-art toolkit used only inside this method.
         def icon():
             return tk.PhotoImage(width=size, height=size)
 
@@ -1122,6 +1130,7 @@ class LifeXPApp:
             image.put(color, to=(int(x1), int(y1), int(x2), int(y2)))
 
         def dot(image, cx, cy, radius, color):
+            # A dot is made by checking nearby pixels and filling the ones inside a circle.
             radius = int(radius)
             for y in range(int(cy) - radius, int(cy) + radius + 1):
                 for x in range(int(cx) - radius, int(cx) + radius + 1):
@@ -1129,6 +1138,7 @@ class LifeXPApp:
                         image.put(color, (x, y))
 
         def stroke(image, x1, y1, x2, y2, color, width=2):
+            # A stroke walks from one point to another and places dots along the path.
             steps = max(abs(int(x2 - x1)), abs(int(y2 - y1)), 1)
             for step in range(steps + 1):
                 t = step / float(steps)
@@ -1143,6 +1153,7 @@ class LifeXPApp:
             stroke(image, x1, y2, x1, y1, color, width)
 
         def ellipse_outline(image, cx, cy, rx, ry, color, width=2):
+            # This loop steps around a circle in degrees, then stretches it into an oval.
             for degrees in range(0, 360, 3):
                 radians = math.radians(degrees)
                 x = cx + math.cos(radians) * rx
@@ -3089,6 +3100,8 @@ class LifeXPApp:
                 level = default_stats[attr]["level"]
                 xp = default_stats[attr]["xp"]
             xp_needed = self.get_xp_needed(level)
+            # Old saves might have too much XP stored in one level. This loop spends
+            # extra XP on level-ups until the stat is in a valid state again.
             while xp >= xp_needed:
                 xp -= xp_needed
                 level += 1
@@ -3254,6 +3267,8 @@ class LifeXPApp:
         difficulty_var = tk.IntVar(value=5)
         pending_quests = []
         suggest_after_id = [None]
+        # pending_quests is a temporary queue. Nothing is saved until the user clicks
+        # Accept Quest, so the dialog can add and remove draft quests freely.
 
         category_section = tk.Frame(surface, bg=self.bg_dark)
         category_section.pack(fill=tk.X, pady=(16, 0))
@@ -3270,6 +3285,8 @@ class LifeXPApp:
         chip_widgets = {}
 
         def refresh_category_chips():
+            # A chip is a clickable label. This refresh makes the selected chip colorful
+            # and returns the other chips to the normal card color.
             for attr, chip in chip_widgets.items():
                 selected = attr_var.get() == attr
                 selected_bg = self.accent_green if attr == all_filter_label else self.attr_colors[attr]
@@ -3448,6 +3465,7 @@ class LifeXPApp:
         remove_button.pack(side=tk.LEFT)
 
         def difficulty_color(v):
+            # Higher difficulty shifts the slider color toward the current accent color.
             ratio = (v - 1) / 9.0
             target_r, target_g, target_b = self._hex_to_rgb(self.accent_green)
             r = int(255 + (target_r - 255) * ratio)
@@ -3456,6 +3474,7 @@ class LifeXPApp:
             return f'#{r:02x}{g:02x}{b:02x}'
 
         def draw_difficulty_slider():
+            # The slider is custom-drawn on a Canvas so its colors match the active theme.
             slider_canvas.delete("all")
             width = max(slider_canvas.winfo_width(), 240)
             left = 16
@@ -3482,6 +3501,7 @@ class LifeXPApp:
             xp_label.config(text=f"Yields {value * 10} XP")
 
         def set_difficulty_from_event(event):
+            # event.x is the mouse position on the slider. Convert it to a 1-10 value.
             width = max(slider_canvas.winfo_width(), 240)
             left = 16
             right = width - 16
@@ -3585,6 +3605,7 @@ class LifeXPApp:
             return result["attribute"]
 
         def refresh_selected_list():
+            # Redraw the queue preview from pending_quests every time the queue changes.
             selected_list.delete(0, tk.END)
             for quest in pending_quests:
                 insert_activity_item(
@@ -3598,6 +3619,8 @@ class LifeXPApp:
             remove_button.config(state=tk.NORMAL if count else tk.DISABLED)
 
         def add_pending_quest(activity_name, attr=None, refresh=True, show_error=True):
+            # This creates or updates a draft quest in the queue. If the same activity
+            # is already queued for the same attribute, only the XP value is updated.
             activity_name = activity_name.strip()
             if not activity_name:
                 if show_error:
@@ -3665,6 +3688,8 @@ class LifeXPApp:
         remove_button.config(command=remove_selected_pending)
 
         def update_suggestions(*args):
+            # Autocomplete is rebuilt from saved activities. The All filter searches
+            # every attribute; a specific attribute searches only that attribute's list.
             suggest_after_id[0] = None
             typed = activity_var.get().strip().lower()
             selected_filter = attr_var.get()
@@ -3701,6 +3726,8 @@ class LifeXPApp:
                 hint_label.config(text="New activity")
 
         def update_suggestions_debounced(*args):
+            # Debouncing waits briefly after typing before refreshing suggestions. This
+            # avoids rebuilding the list on every single keystroke during fast typing.
             if suggest_after_id[0] is not None:
                 dialog.after_cancel(suggest_after_id[0])
             suggest_after_id[0] = dialog.after(120, update_suggestions)
@@ -3733,6 +3760,8 @@ class LifeXPApp:
         accept_button.pack(side=tk.RIGHT)
 
         def save():
+            # When the user accepts the queue, copy each draft quest into real app data
+            # and remember each activity as a future autocomplete suggestion.
             if not pending_quests and not add_current_to_selection(show_error=True):
                 return
 
@@ -3995,6 +4024,8 @@ class LifeXPApp:
 
     def get_scaled_xp_needed(self, level, base_xp):
         """Returns an Elden Ring-style level cost normalized to this app's base XP."""
+        # The raw formula gives a curve shape. Dividing by raw_base normalizes the curve
+        # so level 1 starts at the base XP chosen for this app.
         raw_base = (
             ACCOUNT_LEVEL_CURVE_BASE_MULTIPLIER
             * ((1 + ACCOUNT_LEVEL_CURVE_OFFSET) ** 2)
@@ -4506,6 +4537,7 @@ class LifeXPApp:
                 )
                 for activity, details in sorted_activities:
                     count = details["count"]
+                    # Repeated activities get stronger highlight tags, like a combo meter.
                     if count > 10:
                         combo_tag = "combo_gold"
                     elif count >= 5:
