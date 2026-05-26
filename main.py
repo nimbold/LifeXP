@@ -10,6 +10,7 @@
 # os checks for the save file, random makes effects less uniform, and time keeps
 # longer popup animations on a steady frame clock.
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk, messagebox, simpledialog
 from datetime import datetime, timedelta
 import json
@@ -21,6 +22,9 @@ import time
 # APP_VERSION is shown in Settings. The constants below collect progression and popup
 # timing knobs so later balancing changes do not require hunting through raw numbers.
 APP_VERSION = "1.01"
+DEFAULT_FONT_SIZE = 11
+MIN_FONT_SIZE = 10
+MAX_FONT_SIZE = 13
 BASE_XP_NEEDED = 100
 ACCOUNT_BASE_XP_NEEDED = 500
 ACCOUNT_LEVEL_CURVE_OFFSET = 81
@@ -71,6 +75,10 @@ class LifeXPApp:
         self.current_total_level = 0
         self.themes = self.get_theme_definitions()
         self.current_theme_name = "Tokyo Night"
+        self.font_size = DEFAULT_FONT_SIZE
+        self.animations_enabled = True
+        self.particles_enabled = True
+        self.popups_enabled = True
         self.settings_window = None
 
         # Popup sequence gives simultaneous reward messages small vertical offsets so
@@ -110,12 +118,17 @@ class LifeXPApp:
         if self.current_theme_name not in self.themes:
             self.current_theme_name = "Tokyo Night"
             self.data["user_info"]["theme"] = self.current_theme_name
+        self.font_size = self.data["user_info"].get("font_size", DEFAULT_FONT_SIZE)
+        self.animations_enabled = self.data["user_info"].get("animations_enabled", True)
+        self.particles_enabled = self.data["user_info"].get("particles_enabled", True)
+        self.popups_enabled = self.data["user_info"].get("popups_enabled", True)
         self.apply_modern_theme()
 
         self.setup_header()
         self.setup_ui()
         self.update_stats_display()
         self.refresh_task_list()
+        self.apply_display_preferences(save=False)
 
     # ==============================================================================
     # GROUP A - UI SETUP / PAINTERS AND STYLISTS
@@ -278,6 +291,21 @@ class LifeXPApp:
         candidates = ["#FFFFFF", "#F4F7FF", "#111827", "#000000"]
         return max(candidates, key=lambda color: self.get_contrast_ratio(color, background))
 
+    def scaled_font_size(self, base_size):
+        """Scales a hard-coded font size from the user's base preference."""
+        scale = self.font_size / float(DEFAULT_FONT_SIZE)
+        return max(7, int(round(base_size * scale)))
+
+    def ui_space(self, base_size):
+        """Scales fixed padding and row heights with the readable font size."""
+        scale = self.font_size / float(DEFAULT_FONT_SIZE)
+        return max(1, int(round(base_size * scale)))
+
+    def ui_font(self, base_size=DEFAULT_FONT_SIZE, weight=None, family="{San Francisco}"):
+        """Returns a Tk font tuple adjusted by the current Settings font size."""
+        size = self.scaled_font_size(base_size)
+        return (family, size, weight) if weight else (family, size)
+
     def apply_modern_theme(self):
         """Overrides default system styling to create a cohesive dark 'RPG' look."""
         # ttk widgets use a Style object for shared appearance rules. The clam theme is
@@ -317,10 +345,10 @@ class LifeXPApp:
                 ]})
             ]})]
         )
-        self.style.configure('TNotebook.Tab', background=self.bg_light, foreground=self.text_color, padding=[18, 9], font=('{San Francisco}', 11, 'bold'))
+        self.style.configure('TNotebook.Tab', background=self.bg_light, foreground=self.text_color, padding=[self.ui_space(18), self.ui_space(9)], font=self.ui_font(11, 'bold'))
         self.configure_notebook_tab_style(selected_bg=self.accent_green, active_bg=self.bg_light)
 
-        self.style.configure('TButton', background=self.bg_light, foreground=self.text_color, font=('{San Francisco}', 11), padding=6)
+        self.style.configure('TButton', background=self.bg_light, foreground=self.text_color, font=self.ui_font(11), padding=self.ui_space(6))
         self.style.map('TButton', background=[('active', self.accent_green)], foreground=[('active', self.accent_text_color)])
         self.style.configure(
             'Settings.TCombobox',
@@ -338,21 +366,21 @@ class LifeXPApp:
             selectbackground=[('readonly', self.accent_green)],
             selectforeground=[('readonly', self.accent_text_color)]
         )
-        self.style.configure('QuestAccept.TButton', background="#FFFFFF", foreground="#1D1D1F", font=('{San Francisco}', 11, 'bold'), padding=8)
+        self.style.configure('QuestAccept.TButton', background="#FFFFFF", foreground="#1D1D1F", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
         self.style.map('QuestAccept.TButton', background=[('active', '#E5E5EA')], foreground=[('active', '#1D1D1F')])
-        self.style.configure('QuestComplete.TButton', background="#34C759", foreground="#0B2A12", font=('{San Francisco}', 11, 'bold'), padding=8)
+        self.style.configure('QuestComplete.TButton', background="#34C759", foreground="#0B2A12", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
         self.style.map('QuestComplete.TButton', background=[('active', '#30D158')], foreground=[('active', '#0B2A12')])
-        self.style.configure('QuestEdit.TButton', background="#FFCC00", foreground="#2A2100", font=('{San Francisco}', 11, 'bold'), padding=8)
+        self.style.configure('QuestEdit.TButton', background="#FFCC00", foreground="#2A2100", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
         self.style.map('QuestEdit.TButton', background=[('active', '#FFD60A')], foreground=[('active', '#2A2100')])
-        self.style.configure('QuestAbandon.TButton', background="#FF3B30", foreground="#FFFFFF", font=('{San Francisco}', 11, 'bold'), padding=8)
+        self.style.configure('QuestAbandon.TButton', background="#FF3B30", foreground="#FFFFFF", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
         self.style.map('QuestAbandon.TButton', background=[('active', '#FF453A')], foreground=[('active', '#FFFFFF')])
-        self.style.configure('Danger.TButton', background="#FF3B30", foreground="#FFFFFF", font=('{San Francisco}', 11, 'bold'), padding=8)
+        self.style.configure('Danger.TButton', background="#FF3B30", foreground="#FFFFFF", font=self.ui_font(11, 'bold'), padding=self.ui_space(8))
         self.style.map('Danger.TButton', background=[('active', '#FF453A')], foreground=[('active', '#FFFFFF')])
 
-        self.style.configure('TLabelframe', background=self.bg_dark, foreground=self.accent_green, font=('{San Francisco}', 12, 'bold'))
+        self.style.configure('TLabelframe', background=self.bg_dark, foreground=self.accent_green, font=self.ui_font(12, 'bold'))
         self.style.configure('TLabelframe.Label', background=self.bg_dark, foreground=self.accent_green)
 
-        self.style.configure('TLabel', background=self.bg_dark, foreground=self.dark_surface_text_color, font=('{San Francisco}', 11))
+        self.style.configure('TLabel', background=self.bg_dark, foreground=self.dark_surface_text_color, font=self.ui_font(11))
         self.style.configure('Horizontal.TProgressbar', background=self.accent_green, troughcolor=self.bg_light, bordercolor=self.bg_dark, lightcolor=self.accent_green, darkcolor=self.accent_green)
 
         # Each RPG attribute gets its own progress-bar style. The loop prevents writing
@@ -362,9 +390,9 @@ class LifeXPApp:
 
         # Treeview is the table widget used for the quest list. Its heading, row color,
         # selection color, and row height are styled separately from other widgets.
-        self.style.configure('Treeview', background=self.bg_light, foreground=self.text_color, fieldbackground=self.bg_light, borderwidth=0, rowheight=34, font=('{San Francisco}', 11))
+        self.style.configure('Treeview', background=self.bg_light, foreground=self.text_color, fieldbackground=self.bg_light, borderwidth=0, rowheight=self.ui_space(34), font=self.ui_font(11))
         self.style.map('Treeview', background=[('selected', self.accent_green)], foreground=[('selected', self.accent_text_color)])
-        self.style.configure('Treeview.Heading', background=self.bg_light, foreground=self.accent_green, relief=tk.FLAT, font=('{San Francisco}', 11, 'bold'))
+        self.style.configure('Treeview.Heading', background=self.bg_light, foreground=self.accent_green, relief=tk.FLAT, font=self.ui_font(11, 'bold'))
 
     def fit_window_to_content(self, window, min_width=360, min_height=260, center=True):
         """Sizes a Toplevel to its requested content while staying inside the screen."""
@@ -409,6 +437,12 @@ class LifeXPApp:
 
     def animate_window_open(self, window):
         """Shows a Toplevel with a short fade-and-rise transition."""
+        if not self.animations_enabled:
+            window.deiconify()
+            window.lift()
+            self.set_popup_alpha(window, 1.0)
+            return
+
         # Motion guidelines favor quick, subtle transitions that explain state changes
         # without making the user wait. This uses the already-final window size, then
         # starts 10 pixels lower and eases into place over about 150ms.
@@ -484,6 +518,90 @@ class LifeXPApp:
         for child in widget.winfo_children():
             self.recolor_widget_tree(child, color_map)
 
+    def rescale_widget_tree(self, widget):
+        """Scales already-created tk widget fonts from their original sizes."""
+        try:
+            font_value = widget.cget("font")
+        except tk.TclError:
+            font_value = None
+
+        if font_value:
+            try:
+                if not hasattr(widget, "_lifexp_base_font"):
+                    actual = tkfont.Font(root=self.root, font=font_value).actual()
+                    widget._lifexp_base_font = {
+                        "family": actual.get("family") or "San Francisco",
+                        "size": abs(int(actual.get("size") or DEFAULT_FONT_SIZE)),
+                        "weight": actual.get("weight") or "normal",
+                        "slant": actual.get("slant") or "roman"
+                    }
+                base = widget._lifexp_base_font
+                widget.configure(
+                    font=(base["family"], self.scaled_font_size(base["size"]), base["weight"], base["slant"])
+                )
+            except (tk.TclError, ValueError):
+                pass
+
+        if isinstance(widget, tk.Text):
+            for tag in widget.tag_names():
+                try:
+                    tag_font = widget.tag_cget(tag, "font")
+                except tk.TclError:
+                    continue
+                if not tag_font:
+                    continue
+                cache_name = f"_lifexp_tag_font_{tag}"
+                try:
+                    if not hasattr(widget, cache_name):
+                        actual = tkfont.Font(root=self.root, font=tag_font).actual()
+                        setattr(widget, cache_name, {
+                            "family": actual.get("family") or "San Francisco",
+                            "size": abs(int(actual.get("size") or DEFAULT_FONT_SIZE)),
+                            "weight": actual.get("weight") or "normal",
+                            "slant": actual.get("slant") or "roman"
+                        })
+                    base = getattr(widget, cache_name)
+                    widget.tag_configure(
+                        tag,
+                        font=(base["family"], self.scaled_font_size(base["size"]), base["weight"], base["slant"])
+                    )
+                except (tk.TclError, ValueError):
+                    continue
+
+        for child in widget.winfo_children():
+            self.rescale_widget_tree(child)
+
+    def apply_display_preferences(self, save=True):
+        """Applies persisted font and animation preferences to the live app."""
+        self.font_size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, int(self.font_size)))
+        min_width = self.ui_space(900)
+        min_height = self.ui_space(760)
+        self.root.minsize(min_width, min_height)
+        current_width = self.root.winfo_width()
+        current_height = self.root.winfo_height()
+        if current_width > 1 and current_height > 1 and (current_width < min_width or current_height < min_height):
+            self.root.geometry(f"{max(current_width, min_width)}x{max(current_height, min_height)}")
+        self.apply_modern_theme()
+        self.rescale_widget_tree(self.root)
+        if self.settings_window and self.settings_window.winfo_exists():
+            self.rescale_widget_tree(self.settings_window)
+            self.fit_window_to_content(
+                self.settings_window,
+                min_width=self.ui_space(560),
+                min_height=self.ui_space(500),
+                center=False
+            )
+        if hasattr(self, "task_tree"):
+            self.refresh_task_list()
+        if hasattr(self, "summary_cards"):
+            self.show_summary(self.current_summary_timeframe)
+        if save and hasattr(self, "data"):
+            self.data["user_info"]["font_size"] = self.font_size
+            self.data["user_info"]["animations_enabled"] = bool(self.animations_enabled)
+            self.data["user_info"]["particles_enabled"] = bool(self.particles_enabled)
+            self.data["user_info"]["popups_enabled"] = bool(self.popups_enabled)
+            self.save_data()
+
     def configure_notebook_tab_style(self, selected_bg=None, active_bg=None):
         """Applies selected and hover colors to notebook tabs."""
         if selected_bg is None:
@@ -513,6 +631,9 @@ class LifeXPApp:
 
     def set_tab_hover(self, is_hovering):
         """Eases notebook hover color in and out."""
+        if not self.animations_enabled:
+            return
+
         if self.tab_hover_active == is_hovering:
             return
 
@@ -534,6 +655,9 @@ class LifeXPApp:
 
     def play_tab_change_animation(self, event=None):
         """Pulses the selected tab with a smooth neon glow on tab change."""
+        if not self.animations_enabled:
+            return
+
         self.tab_change_token += 1
         token = self.tab_change_token
         base = self.accent_green
@@ -736,11 +860,11 @@ class LifeXPApp:
                 "tier_index": tier_index,
                 "progress": progress
             }
-            if animate_rank:
+            if animate_rank and self.animations_enabled:
                 self.play_rank_up_animation(rank_event)
 
         self.current_total_level = total_level
-        if not (rank_event and animate_rank):
+        if not (rank_event and animate_rank and self.animations_enabled):
             self.update_avatar(tier_index, color, progress)
         return rank_event
 
@@ -1942,6 +2066,120 @@ class LifeXPApp:
         theme_picker.bind("<<ComboboxSelected>>", update_theme_preview)
         update_theme_preview()
 
+        display_frame = tk.Frame(surface, bg=self.bg_light)
+        display_frame.pack(fill=tk.X, pady=(0, 14))
+        tk.Label(
+            display_frame,
+            text="Display",
+            font=("{San Francisco}", 14, "bold"),
+            bg=self.bg_light,
+            fg=self.text_color
+        ).pack(anchor=tk.W, padx=14, pady=(12, 2))
+
+        display_body = tk.Frame(display_frame, bg=self.bg_light)
+        display_body.pack(fill=tk.X, padx=12, pady=(8, 12))
+
+        font_size_var = tk.IntVar(value=self.font_size)
+        font_value_label = tk.Label(
+            display_body,
+            text=f"{self.font_size} pt",
+            font=("{San Francisco}", 10, "bold"),
+            bg=self.bg_light,
+            fg=self.accent_green,
+            width=5
+        )
+        font_value_label.pack(side=tk.RIGHT, padx=(10, 0))
+
+        tk.Label(
+            display_body,
+            text="Font size",
+            font=("{San Francisco}", 10),
+            bg=self.bg_light,
+            fg=self.text_color
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        font_apply_after_id = [None]
+
+        def apply_font_size(value=None):
+            self.font_size = int(round(float(font_size_var.get())))
+            font_value_label.config(text=f"{self.font_size} pt")
+            if font_apply_after_id[0] is not None:
+                self.root.after_cancel(font_apply_after_id[0])
+            font_apply_after_id[0] = self.root.after(120, lambda: self.apply_display_preferences(save=True))
+
+        font_scale = tk.Scale(
+            display_body,
+            from_=MIN_FONT_SIZE,
+            to=MAX_FONT_SIZE,
+            orient=tk.HORIZONTAL,
+            variable=font_size_var,
+            command=apply_font_size,
+            showvalue=False,
+            resolution=1,
+            bg=self.bg_light,
+            fg=self.text_color,
+            troughcolor=self.bg_dark,
+            highlightthickness=0,
+            activebackground=self.accent_green
+        )
+        font_scale.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        animation_frame = tk.Frame(surface, bg=self.bg_light)
+        animation_frame.pack(fill=tk.X, pady=(0, 14))
+        tk.Label(
+            animation_frame,
+            text="Animations",
+            font=("{San Francisco}", 14, "bold"),
+            bg=self.bg_light,
+            fg=self.text_color
+        ).pack(anchor=tk.W, padx=14, pady=(12, 2))
+
+        animation_body = tk.Frame(animation_frame, bg=self.bg_light)
+        animation_body.pack(fill=tk.X, padx=12, pady=(8, 12))
+
+        animations_var = tk.BooleanVar(value=self.animations_enabled)
+        popups_var = tk.BooleanVar(value=self.popups_enabled)
+        popup_mode_var = tk.StringVar(
+            value="Popups with particles" if self.particles_enabled else "Popups without particles"
+        )
+
+        def save_animation_preferences():
+            self.animations_enabled = bool(animations_var.get())
+            self.popups_enabled = bool(popups_var.get())
+            self.particles_enabled = self.popups_enabled and popup_mode_var.get() == "Popups with particles"
+            popup_mode_picker.configure(state="readonly" if self.popups_enabled else "disabled")
+            self.apply_display_preferences(save=True)
+
+        for label_text, variable in (
+            ("Enable animations", animations_var),
+            ("Reward popups", popups_var),
+        ):
+            tk.Checkbutton(
+                animation_body,
+                text=label_text,
+                variable=variable,
+                command=save_animation_preferences,
+                bg=self.bg_light,
+                fg=self.text_color,
+                selectcolor=self.bg_dark,
+                activebackground=self.bg_light,
+                activeforeground=self.text_color,
+                font=("{San Francisco}", 10)
+            ).pack(side=tk.LEFT, padx=(0, 16))
+
+        popup_mode_picker = ttk.Combobox(
+            animation_body,
+            textvariable=popup_mode_var,
+            values=["Popups with particles", "Popups without particles"],
+            state="readonly",
+            style="Settings.TCombobox",
+            font=("{San Francisco}", 10),
+            width=24
+        )
+        popup_mode_picker.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        popup_mode_picker.bind("<<ComboboxSelected>>", lambda event: save_animation_preferences())
+        popup_mode_picker.configure(state="readonly" if self.popups_enabled else "disabled")
+
         reset_frame = tk.Frame(surface, bg=self.bg_light)
         reset_frame.pack(fill=tk.X, pady=(0, 14))
         tk.Label(
@@ -1977,10 +2215,10 @@ class LifeXPApp:
         tk.Label(
             about_frame,
             text="About",
-            font=("{San Francisco}", 14, "bold"),
+            font=("{San Francisco}", 12, "bold"),
             bg=self.bg_light,
             fg=self.text_color
-        ).pack(anchor=tk.W, padx=14, pady=(12, 2))
+        ).pack(anchor=tk.W, padx=12, pady=(8, 0))
 
         # The About block uses wraplength so longer text stays inside the Settings
         # window instead of forcing the user to resize it by hand.
@@ -1988,17 +2226,17 @@ class LifeXPApp:
             about_frame,
             text=(
                 "LifeXP turns daily effort into RPG progress. "
-                "Track quests, earn XP, level attributes, and review your growth.\n\n"
-                f"Created by NimBold\nVersion {APP_VERSION}"
+                f"Created by NimBold. Version {APP_VERSION}."
             ),
-            font=("{San Francisco}", 11),
+            font=("{San Francisco}", 9),
             bg=self.bg_light,
             fg=self.text_color,
             wraplength=490,
             justify=tk.LEFT
-        ).pack(anchor=tk.W, fill=tk.X, padx=12, pady=12)
+        ).pack(anchor=tk.W, fill=tk.X, padx=12, pady=(4, 8))
 
-        self.show_fitted_window(self.settings_window, min_width=560, min_height=450)
+        self.rescale_widget_tree(self.settings_window)
+        self.show_fitted_window(self.settings_window, min_width=self.ui_space(560), min_height=self.ui_space(500))
 
     def set_theme(self, theme_name, save=True):
         """Applies a selected theme immediately and optionally saves it."""
@@ -2188,6 +2426,16 @@ class LifeXPApp:
             normalized["name"] = name or default_user_info["name"]
             normalized["theme"] = str(user_info.get("theme", normalized["theme"])).strip() or default_user_info["theme"]
             try:
+                normalized["font_size"] = max(
+                    MIN_FONT_SIZE,
+                    min(MAX_FONT_SIZE, int(user_info.get("font_size", normalized["font_size"])))
+                )
+            except (TypeError, ValueError):
+                normalized["font_size"] = default_user_info["font_size"]
+            normalized["animations_enabled"] = bool(user_info.get("animations_enabled", normalized["animations_enabled"]))
+            normalized["particles_enabled"] = bool(user_info.get("particles_enabled", normalized["particles_enabled"]))
+            normalized["popups_enabled"] = bool(user_info.get("popups_enabled", normalized["popups_enabled"]))
+            try:
                 normalized["avatar_seed"] = int(user_info.get("avatar_seed", normalized["avatar_seed"]))
             except (TypeError, ValueError):
                 normalized["avatar_seed"] = default_user_info["avatar_seed"]
@@ -2271,7 +2519,15 @@ class LifeXPApp:
     def get_default_data(self):
         """Returns a fresh, complete save-data structure."""
         return {
-            "user_info": {"name": "Hero", "avatar_seed": random.randint(1, 100000), "theme": self.current_theme_name},
+            "user_info": {
+                "name": "Hero",
+                "avatar_seed": random.randint(1, 100000),
+                "theme": self.current_theme_name,
+                "font_size": DEFAULT_FONT_SIZE,
+                "animations_enabled": True,
+                "particles_enabled": True,
+                "popups_enabled": True
+            },
             "stats": {attr: {"level": 1, "xp": 0} for attr in self.attributes},
             "tasks": [],
             "history": [],
@@ -4053,6 +4309,9 @@ class LifeXPApp:
 
     def schedule_level_up_sequence(self, level_events, rank_event=None):
         """Plays completion rewards after the XP popup has had a short moment."""
+        if not self.animations_enabled:
+            return
+
         # Reward chains are read in order: XP gain first, then attribute level-ups,
         # trophy unlocks, then account rank-ups. XP hands off after it is readable,
         # while later reward popups overlap sooner so the chain stays energetic.
@@ -4074,6 +4333,9 @@ class LifeXPApp:
 
     def play_level_up_animation(self, event):
         """Shows a delayed, extra-bright level-up celebration."""
+        if not self.animations_enabled:
+            return
+
         cx, cy = self.get_center()
         attr = event["attribute"]
         level = event["level"]
@@ -4085,6 +4347,9 @@ class LifeXPApp:
 
     def play_rank_up_animation(self, rank_event):
         """Animates account rank-ups directly on the header avatar and text."""
+        if not self.animations_enabled:
+            return
+
         self.rank_up_animation_token += 1
         token = self.rank_up_animation_token
         title = rank_event["title"]
@@ -4169,6 +4434,9 @@ class LifeXPApp:
 
     def play_trophy_animation(self, trophy_name, x, y):
         """Shows a trophy reward after the level-up burst."""
+        if not self.animations_enabled:
+            return
+
         popup_box = self.play_floating_text(f"🏆 {trophy_name.upper()} EARNED! 🏆", "#EBCB8B", x, y, size=25, duration_steps=TROPHY_POPUP_STEPS, fade_steps=TROPHY_POPUP_FADE_STEPS)
         # Trophy rewards use the same box-anchored particle engine as level-ups so
         # their sparks share one steadier loop instead of the older point burst.
@@ -4225,10 +4493,18 @@ class LifeXPApp:
 
     def play_floating_text(self, text, color, x, y, size=18, shake=False, duration_steps=70, fade_steps=20, trailing_icon=None):
         """Creates retro text that pops, floats upwards, and fades out."""
-        # Floating feedback is shown in a tiny borderless Toplevel window. Toplevel
-        # supports transparency, so the popup can feel lighter than a normal widget.
         root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
         root_h = self.root.winfo_height() if self.root.winfo_height() > 1 else 700
+        if not self.animations_enabled or not self.popups_enabled:
+            return {
+                "x": max(0, min(x, root_w)),
+                "y": max(0, min(y, root_h)),
+                "width": max(80, self.ui_space(160)),
+                "height": max(34, self.ui_space(56))
+            }
+
+        # Floating feedback is shown in a tiny borderless Toplevel window. Toplevel
+        # supports transparency, so the popup can feel lighter than a normal widget.
         self.popup_sequence = (self.popup_sequence + 1) % 5
         stack_offset = ((self.popup_sequence - 1) % 5) * 34
         stack_direction = 1 if y < root_h * 0.3 else -1
@@ -4375,6 +4651,9 @@ class LifeXPApp:
 
     def play_firework_particles(self, color, source_box, count=80, rainbow=False, palette=None, physics=False, life_range=(40, 68), fade_start_ratio=0.35):
         """Spawns radial burst particles for level-up and rank-up celebrations."""
+        if not self.animations_enabled or not self.particles_enabled:
+            return
+
         # This is separate from play_particles() because it starts from the popup box
         # instead of a single point. One combined loop per popup keeps frame rate stable.
         # Parameters:
@@ -4488,6 +4767,9 @@ class LifeXPApp:
 
     def play_particles(self, color, x, y, count=15, gravity=True, rainbow=False):
         """Spawns tiny squares that explode outward."""
+        if not self.animations_enabled or not self.particles_enabled:
+            return
+
         # Particles are tiny Frame widgets with random direction and lifetime. The list
         # keeps their widget, velocity, and remaining life together.
         particles = []
