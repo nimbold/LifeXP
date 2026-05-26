@@ -72,6 +72,7 @@ class LifeXPApp:
         # is the app's memory between runs.
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.data_file = os.path.join(self.base_dir, "lifexp_data.json")
+        self.rank_icon_images = []
         self.xp_needed_cache = {}
         self.total_xp_before_level_cache = {1: 0}
         self.current_total_level = 0
@@ -111,6 +112,7 @@ class LifeXPApp:
         # Visual configuration lives near the top so the rest of the app can reuse it.
         # Each attribute gets one color, which is later used in bars, graphs, and art.
         self.attr_colors = self.themes[self.current_theme_name]["attr_colors"].copy()
+        self.rank_icon_images = self.load_rank_icon_images()
 
         # Boot order matters: styles must exist before widgets are built, and data must
         # load before labels can show the current name, XP, tasks, and levels.
@@ -950,8 +952,7 @@ class LifeXPApp:
         return f"{base_title} {roman}", color, tier_index
 
     def get_title_shape(self, tier_index):
-        # These smaller 8x8 pixel grids are title icons for the avatar. The method
-        # returns the icon matching the current title tier.
+        # Fallback masks used only if the generated rank art cannot be loaded.
         shapes = [
             [ "00000000", "00011000", "00111100", "00011000", "00011000", "00011000", "01111110", "01111110" ],
             [ "00000011", "00000111", "00001100", "00011000", "00110000", "01100000", "11000000", "10000000" ],
@@ -966,7 +967,31 @@ class LifeXPApp:
         ]
         return shapes[tier_index] if tier_index < len(shapes) else shapes[-1]
 
-    def update_avatar(self, tier_index, color, progress, glow_progress=0.0, glow_color=None, ring_progress=None):
+    def load_rank_icon_images(self):
+        """Loads the generated rank medallions used by the header avatar."""
+        rank_names = [
+            "novice",
+            "apprentice",
+            "journeyman",
+            "adept",
+            "expert",
+            "master",
+            "grandmaster",
+            "champion",
+            "hero",
+            "legend",
+        ]
+        icon_dir = os.path.join(self.base_dir, "assets", "rank_icons")
+        images = []
+        for index, name in enumerate(rank_names):
+            path = os.path.join(icon_dir, f"rank_{index:02d}_{name}.png")
+            try:
+                images.append(tk.PhotoImage(file=path))
+            except tk.TclError:
+                images.append(None)
+        return images
+
+    def update_avatar(self, tier_index, color, progress, roman="I", glow_progress=0.0, glow_color=None, ring_progress=None):
         """Draws the user title icon and a circular progress bar around it."""
         # Redrawing starts by clearing the canvas. Canvas drawings are not widgets;
         # they are items that stay until explicitly deleted.
@@ -991,22 +1016,42 @@ class LifeXPApp:
             ring_color = self._blend_color(color, focus_color, glow_progress)
             self.avatar_canvas.create_arc(pad, pad, s-pad, s-pad, start=90, extent=-angle, outline=ring_color, style=tk.ARC, width=ring_width)
 
-        # The title icon is scaled from grid coordinates into canvas pixel positions.
-        # offset centers the icon after pixel_size is calculated.
-        shape = self.get_title_shape(tier_index)
-        grid_size = len(shape)
-        pixel_size = (s - 20) // grid_size
-        offset = (s - (grid_size * pixel_size)) // 2
+        if glow_progress > 0:
+            glow_fill = self._blend_color(self.bg_light, focus_color, min(0.45, glow_progress * 0.45))
+            self.avatar_canvas.create_oval(8, 8, s - 8, s - 8, fill=glow_fill, outline="")
 
-        # Nested loops walk through every row and column of the pixel-art grid. Only
-        # cells containing "1" become colored rectangles.
-        for y in range(grid_size):
-            for x in range(grid_size):
-                if shape[y][x] == "1":
-                    x1 = offset + (x * pixel_size)
-                    y1 = offset + (y * pixel_size)
-                    icon_color = self._blend_color(color, focus_color, glow_progress * 0.70)
-                    self.avatar_canvas.create_rectangle(x1, y1, x1+pixel_size, y1+pixel_size, fill=icon_color, outline="")
+        rank_icon = None
+        if self.rank_icon_images and 0 <= tier_index < len(self.rank_icon_images):
+            rank_icon = self.rank_icon_images[tier_index]
+
+        if rank_icon:
+            self.avatar_canvas.create_image(s / 2, s / 2, image=rank_icon)
+        else:
+            shape = self.get_title_shape(tier_index)
+            grid_size = len(shape)
+            pixel_size = (s - 20) // grid_size
+            offset = (s - (grid_size * pixel_size)) // 2
+            for y in range(grid_size):
+                for x in range(grid_size):
+                    if shape[y][x] == "1":
+                        x1 = offset + (x * pixel_size)
+                        y1 = offset + (y * pixel_size)
+                        icon_color = self._blend_color(color, focus_color, glow_progress * 0.70)
+                        self.avatar_canvas.create_rectangle(x1, y1, x1+pixel_size, y1+pixel_size, fill=icon_color, outline="")
+
+        roman = roman if roman in ("I", "II", "III", "IV", "V") else "I"
+        numeral_font_size = 7 if len(roman) >= 3 else 8
+        badge_fill = self._blend_color("#0F111A", color, 0.18)
+        badge_outline = self._blend_color(color, "#FFFFFF", 0.28 + (glow_progress * 0.32))
+        text_color = self.get_readable_text_color(badge_fill, "#FFFFFF")
+        self.avatar_canvas.create_rectangle(s - 24, s - 20, s - 5, s - 6, fill=badge_fill, outline=badge_outline, width=1)
+        self.avatar_canvas.create_text(
+            s - 14,
+            s - 13,
+            text=roman,
+            fill=text_color,
+            font=("{San Francisco}", numeral_font_size, "bold")
+        )
 
     def format_account_level_text(self, total_level, xp_into_level, xp_needed, total_xp):
         """Returns the compact account level text shown in the header."""
@@ -1027,6 +1072,7 @@ class LifeXPApp:
         # Once the total level is known, the header labels and avatar can be updated
         # with the matching title, color, and icon.
         title, color, tier_index = self.get_title_info(total_level)
+        roman = title.rsplit(" ", 1)[-1]
         self.user_name_label.config(text=title, fg=color)
         self.user_level_label.config(text=self.format_account_level_text(total_level, xp_into_level, xp_needed, total_xp), fg=self.accent_green)
 
@@ -1044,6 +1090,7 @@ class LifeXPApp:
                 "xp_needed": xp_needed,
                 "total_xp": total_xp,
                 "tier_index": tier_index,
+                "roman": roman,
                 "progress": progress
             }
             if animate_rank and self.animations_enabled:
@@ -1051,7 +1098,7 @@ class LifeXPApp:
 
         self.current_total_level = total_level
         if not (rank_event and animate_rank and self.animations_enabled):
-            self.update_avatar(tier_index, color, progress)
+            self.update_avatar(tier_index, color, progress, roman=roman)
         return rank_event
 
     def setup_ui(self):
@@ -4729,6 +4776,7 @@ class LifeXPApp:
         xp_needed = rank_event["xp_needed"]
         total_xp = rank_event["total_xp"]
         tier_index = rank_event["tier_index"]
+        roman = rank_event.get("roman", title.rsplit(" ", 1)[-1])
         progress = rank_event["progress"]
         frames = RANK_UP_HEADER_FRAMES
         level_span = max(1, total_level - previous_level)
@@ -4771,6 +4819,7 @@ class LifeXPApp:
                     tier_index,
                     color,
                     progress,
+                    roman=roman,
                     glow_progress=max(ring_glow, icon_glow),
                     glow_color=focus_color,
                     ring_progress=ring_load
@@ -4792,7 +4841,7 @@ class LifeXPApp:
                 font=("{San Francisco}", 18, "bold")
             )
             self.app_level_delta_label.pack_forget()
-            self.update_avatar(tier_index, color, progress)
+            self.update_avatar(tier_index, color, progress, roman=roman)
 
         animate()
 
