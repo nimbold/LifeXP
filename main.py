@@ -1280,50 +1280,17 @@ class LifeXPApp:
         """Returns compact button colors for the quest action rail."""
         # The custom Quest Log buttons need several colors: normal fill, hover fill,
         # text, border, and glow. Each one starts from the same semantic action color.
-        accept = self.get_action_color("accept")
-        vitality = self.get_action_color("complete")
-        agility = self.get_action_color("edit")
-        strength = self.get_action_color("abandon")
-
-        palettes = {
-            "accept": {
-                "fill": self._blend_color(accept, "#FFFFFF", 0.35),
-                "fg": self.get_action_text_color(self._blend_color(accept, "#FFFFFF", 0.35)),
-                "accent": accept,
-                "hover": accept,
-                "hover_fg": self.get_action_text_color(accept),
-                "border": accept,
-                "glow": accept
-            },
-            "complete": {
-                "fill": self._blend_color(vitality, "#FFFFFF", 0.35),
-                "fg": self.get_action_text_color(self._blend_color(vitality, "#FFFFFF", 0.35)),
-                "accent": vitality,
-                "hover": vitality,
-                "hover_fg": self.get_action_text_color(vitality),
-                "border": vitality,
-                "glow": vitality
-            },
-            "edit": {
-                "fill": self._blend_color(agility, "#FFFFFF", 0.35),
-                "fg": self.get_action_text_color(self._blend_color(agility, "#FFFFFF", 0.35)),
-                "accent": agility,
-                "hover": agility,
-                "hover_fg": self.get_action_text_color(agility),
-                "border": agility,
-                "glow": agility
-            },
-            "abandon": {
-                "fill": self._blend_color(strength, "#FFFFFF", 0.35),
-                "fg": self.get_action_text_color(self._blend_color(strength, "#FFFFFF", 0.35)),
-                "accent": strength,
-                "hover": strength,
-                "hover_fg": self.get_action_text_color(strength),
-                "border": strength,
-                "glow": strength
-            }
+        color = self.get_action_color(role)
+        fill = self._blend_color(color, "#FFFFFF", 0.35)
+        return {
+            "fill": fill,
+            "fg": self.get_action_text_color(fill),
+            "accent": color,
+            "hover": color,
+            "hover_fg": self.get_action_text_color(color),
+            "border": color,
+            "glow": color
         }
-        return palettes[role]
 
     def create_quest_action_button(self, parent, icon, text, role, command, strong_feedback=False):
         """Builds an icon-led Tk button with click feedback for quest actions."""
@@ -1581,47 +1548,35 @@ class LifeXPApp:
                 return body
         return None
 
+    def _generic_scroll(self, event, scroll_target, speed_units):
+        """Generic mouse wheel and trackpad scroll helper for scrollable widgets."""
+        if scroll_target is None or not scroll_target.winfo_exists():
+            return None
+
+        if getattr(event, "num", None) == 4:
+            units = -1
+        elif getattr(event, "num", None) == 5:
+            units = 1
+        else:
+            delta = getattr(event, "delta", 0)
+            if delta == 0:
+                return None
+            units = -1 if delta > 0 else 1
+            if abs(delta) >= 120:
+                units *= max(1, abs(delta) // 120)
+
+        scroll_target.yview_scroll(units * speed_units, "units")
+        return "break"
+
     def scroll_summary_body(self, event):
         """Scrolls the Chronicles entry list under the pointer."""
         body = self.find_summary_body_under_pointer()
-        if body is None:
-            return None
-
-        if getattr(event, "num", None) == 4:
-            units = -1
-        elif getattr(event, "num", None) == 5:
-            units = 1
-        else:
-            delta = getattr(event, "delta", 0)
-            if delta == 0:
-                return None
-            units = -1 if delta > 0 else 1
-            if abs(delta) >= 120:
-                units *= max(1, abs(delta) // 120)
-
-        body.yview_scroll(units * 4, "units")
-        return "break"
+        return self._generic_scroll(event, body, speed_units=4)
 
     def scroll_settings_canvas(self, event):
         """Scrolls the Settings tab content without resizing the main window."""
-        if not hasattr(self, "settings_canvas") or not self.settings_canvas.winfo_exists():
-            return None
-        canvas = self.settings_canvas
-
-        if getattr(event, "num", None) == 4:
-            units = -1
-        elif getattr(event, "num", None) == 5:
-            units = 1
-        else:
-            delta = getattr(event, "delta", 0)
-            if delta == 0:
-                return None
-            units = -1 if delta > 0 else 1
-            if abs(delta) >= 120:
-                units *= max(1, abs(delta) // 120)
-
-        canvas.yview_scroll(units * 3, "units")
-        return "break"
+        canvas = getattr(self, "settings_canvas", None)
+        return self._generic_scroll(event, canvas, speed_units=3)
 
     def create_modern_scrollbar(self, parent, target, width=14):
         """Creates a slim canvas scrollbar wired to a y-scrollable widget."""
@@ -4102,14 +4057,20 @@ class LifeXPApp:
             self.xp_needed_cache[level] = self.get_scaled_xp_needed(level, BASE_XP_NEEDED)
         return self.xp_needed_cache[level]
 
+    def _get_total_xp_before_level_generic(self, level, cache, single_needed_func):
+        """Helper to compute and cache cumulative XP required to reach a given level."""
+        highest_cached_level = max(cache)
+        total = cache[highest_cached_level]
+        for next_level in range(highest_cached_level + 1, level + 1):
+            total += single_needed_func(next_level - 1)
+            cache[next_level] = total
+        return cache[level]
+
     def get_total_xp_before_level(self, level):
         """Returns cumulative XP needed to reach a level, cached by level."""
-        highest_cached_level = max(self.total_xp_before_level_cache)
-        total = self.total_xp_before_level_cache[highest_cached_level]
-        for next_level in range(highest_cached_level + 1, level + 1):
-            total += self.get_xp_needed(next_level - 1)
-            self.total_xp_before_level_cache[next_level] = total
-        return self.total_xp_before_level_cache[level]
+        return self._get_total_xp_before_level_generic(
+            level, self.total_xp_before_level_cache, self.get_xp_needed
+        )
 
     def get_total_xp_for_stat(self, stat):
         """Returns lifetime XP for one attribute, including already-spent level XP."""
@@ -4129,12 +4090,9 @@ class LifeXPApp:
 
     def get_total_account_xp_before_level(self, level):
         """Returns cumulative account XP needed to reach a total level."""
-        highest_cached_level = max(self.account_total_xp_before_level_cache)
-        total = self.account_total_xp_before_level_cache[highest_cached_level]
-        for next_level in range(highest_cached_level + 1, level + 1):
-            total += self.get_account_xp_needed(next_level - 1)
-            self.account_total_xp_before_level_cache[next_level] = total
-        return self.account_total_xp_before_level_cache[level]
+        return self._get_total_xp_before_level_generic(
+            level, self.account_total_xp_before_level_cache, self.get_account_xp_needed
+        )
 
     def get_account_level_progress(self, total_xp):
         """Returns total level, XP inside that level, and XP needed for the next one."""
