@@ -24,9 +24,9 @@ You add quests, complete them for XP, level up five attributes, unlock trophies,
 
 ## Screenshots
 
-| Quest Log | Character Info | Chronicles | Settings |
-| --- | --- | --- | --- |
-| <img src="screenshots/quest-log.png" alt="Quest Log tab" width="220"> | <img src="screenshots/character-info.png" alt="Character Info tab" width="220"> | <img src="screenshots/chronicles.png" alt="Chronicles tab" width="220"> | <img src="screenshots/settings.png" alt="Settings tab" width="220"> |
+| Quest Log | Accept Quest | Character Info | Chronicles | Settings |
+| --- | --- | --- | --- | --- |
+| <img src="screenshots/quest-log.png" alt="Quest Log tab" width="170"> | <img src="screenshots/accept-quest.png" alt="Accept Quest window" width="170"> | <img src="screenshots/character-info.png" alt="Character Info tab" width="170"> | <img src="screenshots/chronicles.png" alt="Chronicles tab" width="170"> | <img src="screenshots/settings.png" alt="Settings tab" width="170"> |
 
 ## Run
 
