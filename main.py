@@ -386,6 +386,8 @@ class LifeXPApp:
 
     def get_action_color(self, role):
         """Returns semantic action colors that stay distinct across themes."""
+        # Buttons use meanings, not fixed hex colors. Accept is blue/intelligence and
+        # Complete is green/vitality, so they stay different even in very dark themes.
         action_colors = {
             "accept": self.attr_colors["Intelligence"],
             "complete": self.attr_colors["Vitality"],
@@ -397,10 +399,14 @@ class LifeXPApp:
 
     def get_action_text_color(self, background):
         """Returns readable text for a colored action control."""
+        # Dark navy text looks good on many bright action colors. If it is not readable,
+        # get_readable_text_color automatically switches to a safer light or dark color.
         return self.get_readable_text_color(background, "#0F172A")
 
     def get_action_hover_color(self, background):
         """Returns a visible hover color for a colored action control."""
+        # Hover colors are a small move toward white. This creates feedback without
+        # inventing a separate hover palette for every theme.
         return self._blend_color(background, "#FFFFFF", 0.18)
 
     def scaled_font_size(self, base_size):
@@ -514,6 +520,8 @@ class LifeXPApp:
             selectbackground=[('readonly', self.accent_green)],
             selectforeground=[('readonly', self.accent_text_color)]
         )
+        # Dialog action buttons share the same semantic colors as the Quest Log action
+        # rail. The loop below creates five ttk button styles from one dictionary.
         action_button_styles = {
             "QuestAccept.TButton": self.get_action_color("accept"),
             "QuestComplete.TButton": self.get_action_color("complete"),
@@ -1208,6 +1216,8 @@ class LifeXPApp:
 
     def get_quest_action_palette(self, role):
         """Returns compact button colors for the quest action rail."""
+        # The custom Quest Log buttons need several colors: normal fill, hover fill,
+        # text, border, and glow. Each one starts from the same semantic action color.
         accept = self.get_action_color("accept")
         vitality = self.get_action_color("complete")
         agility = self.get_action_color("edit")
@@ -1464,6 +1474,8 @@ class LifeXPApp:
 
     def get_attribute_text_color(self, attr, background=None):
         """Returns an attribute color adjusted for use as text."""
+        # Attribute colors are bright enough for bars and trophies, but not always for
+        # text. This helper nudges them lighter or darker until the text can be read.
         background = background or self.bg_light
         return self.improve_color_contrast(self.attr_colors[attr], background)
 
@@ -3483,6 +3495,8 @@ class LifeXPApp:
         def insert_activity_item(listbox, text, attr=None, use_attr_color=True):
             listbox.insert(tk.END, text)
             item_index = listbox.size() - 1
+            # Activity suggestions can be colored by attribute. We adjust the color
+            # first so it remains readable on light and dark list backgrounds.
             color = self.get_attribute_text_color(attr, self.bg_light) if use_attr_color and attr else self.text_color
             listbox.itemconfig(item_index, foreground=color)
             return item_index
