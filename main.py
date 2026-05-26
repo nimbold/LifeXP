@@ -38,6 +38,8 @@ XP_POPUP_STEPS = 125
 XP_POPUP_FADE_STEPS = 42
 LEVEL_UP_POPUP_STEPS = 138
 LEVEL_UP_POPUP_FADE_STEPS = 36
+BATCH_LEVEL_UP_POPUP_STEPS = 190
+BATCH_LEVEL_UP_POPUP_FADE_STEPS = 48
 RANK_UP_HEADER_FRAMES = 92
 TROPHY_POPUP_STEPS = 116
 TROPHY_POPUP_FADE_STEPS = 32
@@ -45,6 +47,8 @@ XP_TO_REWARD_START_RATIO = 0.68
 REWARD_CHAIN_START_RATIO = 0.50
 RANK_UP_GLOW_COLOR = "#FFB020"
 MAX_ACTIVE_PARTICLES = 180
+PARTICLE_HARD_LIFETIME_MS = 2400
+PARTICLE_FADE_RELEASE_RATIO = 0.88
 
 # ==============================================================================
 # MAIN APP CLASS
@@ -4055,6 +4059,7 @@ class LifeXPApp:
         self.save_data()
         self.refresh_task_list()
         rank_event = self.update_stats_display(animate_rank=False)
+        level_events = self.summarize_level_events(level_events)
 
         cx, cy = self.get_center()
         # XP gain always gets a fixed readable duration. If level-up popups are also
@@ -4064,7 +4069,7 @@ class LifeXPApp:
         # while physics=True keeps the older gravity/falling feel.
         popup_text = f"+{total_xp_gain} XP!" if len(tasks) == 1 else f"{len(tasks)} QUESTS  +{total_xp_gain} XP!"
         popup_box = self.play_floating_text(popup_text, "#EBCB8B", cx, cy, size=30, duration_steps=XP_POPUP_STEPS, fade_steps=XP_POPUP_FADE_STEPS)
-        self.play_firework_particles("#EBCB8B", popup_box, count=34, palette=["#EBCB8B", "#FFD166", "#F59E0B", "#F97316"], physics=True)
+        self.play_firework_particles("#EBCB8B", popup_box, count=34, palette=["#EBCB8B", "#FFD166", "#F59E0B", "#F97316"], physics=True, life_range=(42, 58), fade_start_ratio=0.42)
 
         if level_events or rank_event:
             self.schedule_level_up_sequence(level_events, rank_event)
@@ -4243,6 +4248,26 @@ class LifeXPApp:
             xp_needed = self.get_xp_needed(stat["level"])
 
         return level_events
+
+    def summarize_level_events(self, level_events):
+        """Collapses many level crossings into one final-level event per attribute."""
+        summarized = {}
+        for event in level_events:
+            attr = event["attribute"]
+            summary = summarized.setdefault(attr, {
+                "attribute": attr,
+                "level": event["level"],
+                "trophies": []
+            })
+            summary["level"] = max(summary["level"], event["level"])
+            if event["trophy"]:
+                summary["trophies"].append(event["trophy"])
+
+        return [
+            summarized[attr]
+            for attr in self.attributes
+            if attr in summarized
+        ]
 
     def check_trophies(self, attribute, new_level):
         """Awards a trophy if specific level milestones are hit."""
@@ -4728,38 +4753,99 @@ class LifeXPApp:
         if not self.animations_enabled:
             return
 
-        # Reward chains are read in order: XP gain first, then attribute level-ups,
-        # trophy unlocks, then account rank-ups. XP hands off after it is readable,
-        # while later reward popups overlap sooner so the chain stays energetic.
+        # XP confirms the quest first. Attribute upgrades are batched so completing
+        # several quests does not spawn one popup and particle burst per level crossed.
         first_reward_delay = self.popup_overlap_start_ms(XP_POPUP_STEPS, XP_TO_REWARD_START_RATIO)
-        next_delay = first_reward_delay
-        level_start_gap = self.popup_overlap_start_ms(LEVEL_UP_POPUP_STEPS)
         trophy_start_gap = self.popup_overlap_start_ms(TROPHY_POPUP_STEPS)
 
         if rank_event:
             self.root.after(first_reward_delay, lambda event=rank_event: self.play_rank_up_animation(event))
 
-        for event in level_events:
-            self.root.after(next_delay, lambda e=event: self.play_level_up_animation(e))
-            next_delay += level_start_gap
+        if level_events:
+            self.root.after(first_reward_delay, lambda events=level_events: self.play_level_up_batch(events))
 
-            if event["trophy"]:
-                self.root.after(next_delay, lambda trophy=event["trophy"]: self.play_trophy_animation_at_center(trophy))
+        next_delay = first_reward_delay + self.popup_overlap_start_ms(BATCH_LEVEL_UP_POPUP_STEPS, 0.82)
+        for event in level_events:
+            for trophy in event.get("trophies", []):
+                self.root.after(next_delay, lambda trophy=trophy: self.play_trophy_animation_at_center(trophy))
                 next_delay += trophy_start_gap
 
-    def play_level_up_animation(self, event):
+    def play_level_up_batch(self, events):
+        """Shows all upgraded attributes together after a multi-quest completion."""
+        if not self.animations_enabled:
+            return
+
+        cx, cy = self.get_center()
+        count = max(1, len(events))
+        spacing = 46
+        start_y = int(cy + 48 - ((count - 1) * spacing / 2))
+        popup_boxes = []
+
+        for index, event in enumerate(events):
+            popup_boxes.append(self.play_level_up_animation(
+                event,
+                x=cx,
+                y=start_y + (index * spacing),
+                duration_steps=BATCH_LEVEL_UP_POPUP_STEPS,
+                fade_steps=BATCH_LEVEL_UP_POPUP_FADE_STEPS,
+                particle_count=0,
+                stack=False
+            ))
+
+        self.play_level_up_batch_particles(events, popup_boxes)
+
+    def play_level_up_animation(self, event, x=None, y=None, duration_steps=LEVEL_UP_POPUP_STEPS, fade_steps=LEVEL_UP_POPUP_FADE_STEPS, particle_count=64, stack=True):
         """Shows a delayed, extra-bright level-up celebration."""
         if not self.animations_enabled:
             return
 
         cx, cy = self.get_center()
+        x = cx if x is None else x
+        y = cy + 55 if y is None else y
         attr = event["attribute"]
         level = event["level"]
 
-        popup_box = self.play_floating_text(f"{attr} leveled up {level}", "#B48EAD", cx, cy + 55, size=28, shake=True, duration_steps=LEVEL_UP_POPUP_STEPS, fade_steps=LEVEL_UP_POPUP_FADE_STEPS, trailing_icon=self.create_level_up_arrow_icon("#FF9E00"))
-        # Level-up celebrations use more sparks and a later fade than XP rewards. They
-        # still run in one shared animation loop so the larger burst does not tank FPS.
-        self.play_firework_particles(self.attr_colors[attr], popup_box, count=112, rainbow=True, life_range=(76, 118), fade_start_ratio=0.52)
+        popup_box = self.play_floating_text(
+            f"{attr} leveled up {level}",
+            "#B48EAD",
+            x,
+            y,
+            size=28,
+            shake=True,
+            duration_steps=duration_steps,
+            fade_steps=fade_steps,
+            trailing_icon=self.create_level_up_arrow_icon("#FF9E00"),
+            stack=stack
+        )
+        if particle_count > 0:
+            self.play_firework_particles(self.attr_colors[attr], popup_box, count=particle_count, rainbow=True, life_range=(78, 104), fade_start_ratio=0.52)
+        return popup_box
+
+    def play_level_up_batch_particles(self, events, popup_boxes):
+        """Creates one shared particle burst around the full batch of level-up popups."""
+        if not popup_boxes:
+            return
+
+        left = min(box["x"] - (box["width"] / 2) for box in popup_boxes)
+        right = max(box["x"] + (box["width"] / 2) for box in popup_boxes)
+        top = min(box["y"] - (box["height"] / 2) for box in popup_boxes)
+        bottom = max(box["y"] + (box["height"] / 2) for box in popup_boxes)
+        source_box = {
+            "x": int((left + right) / 2),
+            "y": int((top + bottom) / 2),
+            "width": int(right - left),
+            "height": int(bottom - top),
+        }
+        palette = [self.attr_colors[event["attribute"]] for event in events]
+        palette.extend(["#EBCB8B", "#FFD166", "#ECEFF4"])
+        self.play_firework_particles(
+            "#B48EAD",
+            source_box,
+            count=max(72, min(120, 42 + (len(events) * 22))),
+            palette=palette,
+            life_range=(86, 112),
+            fade_start_ratio=0.54
+        )
 
     def play_rank_up_animation(self, rank_event):
         """Animates account rank-ups directly on the header avatar and text."""
@@ -4864,8 +4950,8 @@ class LifeXPApp:
             count=64,
             palette=["#EBCB8B", "#FFD166", "#F59E0B", "#FFF4A3", "#ECEFF4"],
             physics=True,
-            life_range=(54, 86),
-            fade_start_ratio=0.45
+            life_range=(50, 72),
+            fade_start_ratio=0.44
         )
 
     def acquire_particle_widget(self, color, size):
@@ -4881,6 +4967,7 @@ class LifeXPApp:
 
         widget._lifexp_particle_token = token
         self.register_particle_widget(widget)
+        self.root.after(PARTICLE_HARD_LIFETIME_MS, lambda w=widget, t=token: self.release_particle_widget(w, t))
         return widget, token
 
     def register_particle_widget(self, widget):
@@ -4909,10 +4996,12 @@ class LifeXPApp:
         """Compatibility wrapper for particle cleanup."""
         self.release_particle_widget(widget, token)
 
-    def play_floating_text(self, text, color, x, y, size=18, shake=False, duration_steps=70, fade_steps=20, trailing_icon=None):
+    def play_floating_text(self, text, color, x, y, size=18, shake=False, duration_steps=70, fade_steps=20, trailing_icon=None, stack=True):
         """Creates retro text that pops, floats upwards, and fades out."""
         root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
         root_h = self.root.winfo_height() if self.root.winfo_height() > 1 else 700
+        x = int(round(x))
+        y = int(round(y))
         if not self.animations_enabled or not self.popups_enabled:
             return {
                 "x": max(0, min(x, root_w)),
@@ -4923,8 +5012,11 @@ class LifeXPApp:
 
         # Floating feedback is shown in a tiny borderless Toplevel window. Toplevel
         # supports transparency, so the popup can feel lighter than a normal widget.
-        self.popup_sequence = (self.popup_sequence + 1) % 5
-        stack_offset = ((self.popup_sequence - 1) % 5) * 34
+        if stack:
+            self.popup_sequence = (self.popup_sequence + 1) % 5
+            stack_offset = ((self.popup_sequence - 1) % 5) * 34
+        else:
+            stack_offset = 0
         stack_direction = 1 if y < root_h * 0.3 else -1
         popup = tk.Toplevel(self.root)
         popup.overrideredirect(True)
@@ -4975,7 +5067,9 @@ class LifeXPApp:
         # Top-corner popups stack downward, while center-screen reward popups stack
         # upward. This avoids edge clamping when several animations start together.
         safe_x, safe_y = self.clamp_box_position(popup_w, popup_h, x, y + (stack_offset * stack_direction))
-        popup.geometry(f"+{root_x + safe_x - popup_w // 2}+{root_y + safe_y - popup_h // 2}")
+        safe_x = int(round(safe_x))
+        safe_y = int(round(safe_y))
+        popup.geometry(f"+{int(root_x + safe_x - popup_w // 2)}+{int(root_y + safe_y - popup_h // 2)}")
 
         # This local clamp uses already-known window dimensions so animation frames do
         # not repeatedly ask Tkinter for geometry. That keeps long popups near 60 FPS.
@@ -5036,7 +5130,9 @@ class LifeXPApp:
                     dx, dy = 0, 0
 
                 safe_x, safe_current_y = clamp_popup_position(new_w, new_h, x, current_y)
-                popup.geometry(f"+{root_x + safe_x - new_w // 2 + dx}+{root_y + safe_current_y - new_h // 2 + dy}")
+                safe_x = int(round(safe_x))
+                safe_current_y = int(round(safe_current_y))
+                popup.geometry(f"+{int(root_x + safe_x - new_w // 2 + dx)}+{int(root_y + safe_current_y - new_h // 2 + dy)}")
                 if step % 30 == 0:
                     popup.lift()
 
@@ -5081,6 +5177,7 @@ class LifeXPApp:
         # - life_range controls how long particles remain alive.
         # - fade_start_ratio controls how late the slow fade begins.
         particles = []
+        max_frames = max(1, min(max(life_range) + 2, PARTICLE_HARD_LIFETIME_MS // 20))
         rainbow_colors = ["#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#B48EAD", "#88C0D0", "#ECEFF4"]
         active_palette = palette or (rainbow_colors if rainbow else [color])
         root_w = self.root.winfo_width() if self.root.winfo_width() > 1 else 850
@@ -5133,6 +5230,11 @@ class LifeXPApp:
             nonlocal root_w, root_h
             active = False
             frame_count[0] += 1
+            if frame_count[0] >= max_frames:
+                for particle in particles:
+                    self.destroy_particle_widget(particle["widget"], particle["token"])
+                return
+
             if frame_count[0] % 10 == 0:
                 measured_w = self.root.winfo_width()
                 measured_h = self.root.winfo_height()
@@ -5168,6 +5270,10 @@ class LifeXPApp:
                     fade_start = int(particle["max_life"] * fade_start_ratio)
                     if age >= fade_start and particle["fade_tick"] % 3 == 0:
                         fade_ratio = (age - fade_start) / float(max(1, particle["max_life"] - fade_start))
+                        if fade_ratio >= PARTICLE_FADE_RELEASE_RATIO:
+                            self.destroy_particle_widget(widget, particle["token"])
+                            particle["life"] = -1
+                            continue
                         widget.configure(bg=self._blend_color(particle["color"], self.bg_dark, self.ease_smoothstep(fade_ratio)))
                     particle["fade_tick"] += 1
 
@@ -5180,6 +5286,9 @@ class LifeXPApp:
 
             if active:
                 self.root.after(20, animate)
+            else:
+                for particle in particles:
+                    self.destroy_particle_widget(particle["widget"], particle["token"])
 
         animate()
 
@@ -5191,6 +5300,7 @@ class LifeXPApp:
         # Particles are tiny Frame widgets with random direction and lifetime. The list
         # keeps their widget, velocity, and remaining life together.
         particles = []
+        max_frames = 36
         rainbow_colors = ["#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#B48EAD", "#88C0D0", "#ECEFF4"]
 
         # This loop creates all particles at the starting point. Random dx/dy values make
@@ -5214,7 +5324,7 @@ class LifeXPApp:
                 "y": start_y,
                 "dx": dx,
                 "dy": dy,
-                "life": random.randint(20, 40)
+                "life": random.randint(20, 32)
             })
 
         # The particle animation moves living particles, applies gravity if requested,
@@ -5225,6 +5335,11 @@ class LifeXPApp:
             nonlocal root_w, root_h
             active = False
             frame_count[0] += 1
+            if frame_count[0] >= max_frames:
+                for p in particles:
+                    self.destroy_particle_widget(p["widget"], p["token"])
+                return
+
             if frame_count[0] % 10 == 0:
                 measured_w = self.root.winfo_width()
                 measured_h = self.root.winfo_height()
@@ -5265,6 +5380,9 @@ class LifeXPApp:
 
             if active:
                 self.root.after(35, animate)
+            else:
+                for p in particles:
+                    self.destroy_particle_widget(p["widget"], p["token"])
 
         animate()
 
