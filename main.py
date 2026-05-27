@@ -17,11 +17,13 @@ import json
 import math
 import os
 import random
+import sys
 import time
 
 # APP_VERSION is shown in Settings. The constants below collect progression and popup
 # timing knobs so later balancing changes do not require hunting through raw numbers.
-APP_VERSION = "1.01"
+APP_NAME = "LifeXP"
+APP_VERSION = "1.0.1"
 DEFAULT_FONT_SIZE = 11
 MIN_FONT_SIZE = 10
 MAX_FONT_SIZE = 13
@@ -50,6 +52,20 @@ MAX_ACTIVE_PARTICLES = 180
 PARTICLE_HARD_LIFETIME_MS = 2400
 PARTICLE_FADE_RELEASE_RATIO = 0.88
 
+
+def get_resource_dir():
+    """Returns the folder where bundled read-only app assets live."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_user_data_dir():
+    """Returns the folder where packaged builds should write user progress."""
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", APP_NAME)
+    return os.path.join(os.path.expanduser("~"), f".{APP_NAME.lower()}")
+
 # ==============================================================================
 # MAIN APP CLASS
 # A class lets the app keep related data and behavior together. Every method
@@ -74,8 +90,10 @@ class LifeXPApp:
 
         # Keep track of persistence and account-level animation state. The JSON file
         # is the app's memory between runs.
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.data_file = os.path.join(self.base_dir, "lifexp_data.json")
+        self.base_dir = get_resource_dir()
+        self.data_dir = get_user_data_dir() if getattr(sys, "frozen", False) else self.base_dir
+        self.data_file = os.path.join(self.data_dir, "lifexp_data.json")
+        os.makedirs(self.data_dir, exist_ok=True)
         self.rank_icon_images = []
         self.xp_needed_cache = {}
         self.total_xp_before_level_cache = {1: 0}

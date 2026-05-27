@@ -47,12 +47,41 @@ Check syntax:
 python3 -m py_compile main.py
 ```
 
+## macOS ARM64 app build
+
+This project includes a GitHub Actions workflow that builds an unsigned Apple
+Silicon macOS app automatically.
+
+The workflow lives at:
+
+```text
+.github/workflows/build-macos.yml
+```
+
+It runs on a macOS ARM64 runner, installs PyInstaller, builds `LifeXP.app`, and
+uploads this artifact:
+
+```text
+LifeXP-macos-arm64-unsigned.zip
+```
+
+Because the app is unsigned, macOS may warn that it cannot verify the developer.
+That is expected until the project has an Apple Developer certificate for signing
+and notarization.
+
+Packaged macOS builds save user progress here:
+
+```text
+~/Library/Application Support/LifeXP/lifexp_data.json
+```
+
 ## Files
 
 ```text
 main.py              App code
 README.md            Quick project overview
 BEGINNER_GUIDE.md    Beginner-friendly code explanation
+LifeXP.spec          PyInstaller macOS app build recipe
 lifexp_data.json     Local save file, created automatically
 ```
 
@@ -74,4 +103,4 @@ Start with [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) if you are new to Python or Tk
 
 ## Version
 
-`1.01`
+`1.0.1`

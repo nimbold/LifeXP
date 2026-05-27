@@ -10,6 +10,12 @@ env/
 # macOS Finder metadata
 .DS_Store
 
+# PyInstaller build outputs
+build/
+dist/
+*.spec.bak
+LifeXP-macos-arm64-unsigned.zip
+
 # Editor settings that are specific to this machine
 .vscode/
 settings.json
