@@ -1,8 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_data_files
+
 datas = [
     ("assets", "assets"),
 ]
+datas += collect_data_files("certifi")
 
 
 a = Analysis(
@@ -56,8 +59,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleDisplayName": "LifeXP",
         "CFBundleName": "LifeXP",
-        "CFBundleShortVersionString": "1.0.2",
-        "CFBundleVersion": "1.0.2",
+        "CFBundleShortVersionString": "1.0.3",
+        "CFBundleVersion": "1.0.3",
         "LSMinimumSystemVersion": "12.0",
         "NSHighResolutionCapable": True,
     },

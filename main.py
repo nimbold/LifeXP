@@ -17,6 +17,7 @@ import json
 import math
 import os
 import random
+import ssl
 import sys
 import threading
 import time
@@ -24,10 +25,15 @@ import urllib.error
 import urllib.request
 import webbrowser
 
+try:
+    import certifi
+except ModuleNotFoundError:
+    certifi = None
+
 # APP_VERSION is shown in Settings. The constants below collect progression and popup
 # timing knobs so later balancing changes do not require hunting through raw numbers.
 APP_NAME = "LifeXP"
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 GITHUB_REPO = "nimbold/LifeXP"
 GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -85,6 +91,13 @@ def configure_platform_scaling(root):
         return
     if current_scaling < PACKAGED_MACOS_MIN_TK_SCALING:
         root.tk.call("tk", "scaling", PACKAGED_MACOS_MIN_TK_SCALING)
+
+
+def get_https_context():
+    """Returns an HTTPS context that works inside the packaged macOS app."""
+    if certifi is not None:
+        return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
 
 # ==============================================================================
 # MAIN APP CLASS
@@ -2793,7 +2806,7 @@ class LifeXPApp:
                         "User-Agent": f"{APP_NAME}/{APP_VERSION}"
                     }
                 )
-                with urllib.request.urlopen(request, timeout=8) as response:
+                with urllib.request.urlopen(request, timeout=8, context=get_https_context()) as response:
                     release = json.loads(response.read().decode("utf-8"))
                 result = {
                     "ok": True,
