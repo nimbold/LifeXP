@@ -17,89 +17,54 @@ import json
 import math
 import os
 import random
-import ssl
-import sys
 import threading
 import time
 import urllib.error
 import urllib.request
 import webbrowser
 
-try:
-    import certifi
-except ModuleNotFoundError:
-    certifi = None
-
-# APP_VERSION is shown in Settings. The constants below collect progression and popup
-# timing knobs so later balancing changes do not require hunting through raw numbers.
-APP_NAME = "LifeXP"
-APP_VERSION = "1.0.4"
-GITHUB_REPO = "nimbold/LifeXP"
-GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
-GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-FONT_SCALE_BASE_SIZE = 11
-DEFAULT_FONT_SIZE = 14
-MIN_FONT_SIZE = 12
-MAX_FONT_SIZE = 17
-LEGACY_MAX_FONT_SIZE = 13
-PACKAGED_MACOS_MIN_TK_SCALING = 1.333
-POPUP_MODE_WITH_PARTICLES = "Popups with particles"
-POPUP_MODE_WITHOUT_PARTICLES = "Popups without particles"
-BASE_XP_NEEDED = 100
-ACCOUNT_BASE_XP_NEEDED = 500
-ACCOUNT_LEVEL_CURVE_OFFSET = 81
-ACCOUNT_LEVEL_CURVE_FLOOR = 92
-ACCOUNT_LEVEL_CURVE_BASE_MULTIPLIER = 0.1
-ACCOUNT_LEVEL_CURVE_UPGRADE_MULTIPLIER = 0.02
-POPUP_FRAME_INTERVAL_SECONDS = 1 / 60
-XP_POPUP_STEPS = 125
-XP_POPUP_FADE_STEPS = 42
-LEVEL_UP_POPUP_STEPS = 138
-LEVEL_UP_POPUP_FADE_STEPS = 36
-BATCH_LEVEL_UP_POPUP_STEPS = 190
-BATCH_LEVEL_UP_POPUP_FADE_STEPS = 48
-RANK_UP_HEADER_FRAMES = 92
-TROPHY_POPUP_STEPS = 116
-TROPHY_POPUP_FADE_STEPS = 32
-XP_TO_REWARD_START_RATIO = 0.68
-REWARD_CHAIN_START_RATIO = 0.50
-RANK_UP_GLOW_COLOR = "#FFB020"
-MAX_ACTIVE_PARTICLES = 180
-PARTICLE_HARD_LIFETIME_MS = 2400
-PARTICLE_FADE_RELEASE_RATIO = 0.88
-
-
-def get_resource_dir():
-    """Returns the folder where bundled read-only app assets live."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return sys._MEIPASS
-    return os.path.dirname(os.path.abspath(__file__))
-
-
-def get_user_data_dir():
-    """Returns the folder where packaged builds should write user progress."""
-    if sys.platform == "darwin":
-        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", APP_NAME)
-    return os.path.join(os.path.expanduser("~"), f".{APP_NAME.lower()}")
-
-
-def configure_platform_scaling(root):
-    """Keeps packaged macOS font rendering close to normal Python Tkinter runs."""
-    if sys.platform != "darwin" or not getattr(sys, "frozen", False):
-        return
-    try:
-        current_scaling = float(root.tk.call("tk", "scaling"))
-    except (tk.TclError, ValueError):
-        return
-    if current_scaling < PACKAGED_MACOS_MIN_TK_SCALING:
-        root.tk.call("tk", "scaling", PACKAGED_MACOS_MIN_TK_SCALING)
-
-
-def get_https_context():
-    """Returns an HTTPS context that works inside the packaged macOS app."""
-    if certifi is not None:
-        return ssl.create_default_context(cafile=certifi.where())
-    return ssl.create_default_context()
+from lifexp.constants import (
+    ACCOUNT_BASE_XP_NEEDED,
+    ACCOUNT_LEVEL_CURVE_BASE_MULTIPLIER,
+    ACCOUNT_LEVEL_CURVE_FLOOR,
+    ACCOUNT_LEVEL_CURVE_OFFSET,
+    ACCOUNT_LEVEL_CURVE_UPGRADE_MULTIPLIER,
+    APP_NAME,
+    APP_VERSION,
+    BASE_XP_NEEDED,
+    BATCH_LEVEL_UP_POPUP_FADE_STEPS,
+    BATCH_LEVEL_UP_POPUP_STEPS,
+    DEFAULT_FONT_SIZE,
+    FONT_SCALE_BASE_SIZE,
+    GITHUB_LATEST_RELEASE_API,
+    GITHUB_RELEASES_URL,
+    LEGACY_MAX_FONT_SIZE,
+    LEVEL_UP_POPUP_FADE_STEPS,
+    LEVEL_UP_POPUP_STEPS,
+    MAX_ACTIVE_PARTICLES,
+    MAX_FONT_SIZE,
+    MIN_FONT_SIZE,
+    PARTICLE_FADE_RELEASE_RATIO,
+    PARTICLE_HARD_LIFETIME_MS,
+    POPUP_FRAME_INTERVAL_SECONDS,
+    POPUP_MODE_WITH_PARTICLES,
+    POPUP_MODE_WITHOUT_PARTICLES,
+    RANK_UP_GLOW_COLOR,
+    RANK_UP_HEADER_FRAMES,
+    REWARD_CHAIN_START_RATIO,
+    TROPHY_POPUP_FADE_STEPS,
+    TROPHY_POPUP_STEPS,
+    XP_POPUP_FADE_STEPS,
+    XP_POPUP_STEPS,
+    XP_TO_REWARD_START_RATIO,
+)
+from lifexp.runtime import (
+    configure_platform_scaling,
+    get_https_context,
+    get_resource_dir,
+    get_user_data_dir,
+    is_packaged_app,
+)
 
 # ==============================================================================
 # MAIN APP CLASS
@@ -126,7 +91,7 @@ class LifeXPApp:
         # Keep track of persistence and account-level animation state. The JSON file
         # is the app's memory between runs.
         self.base_dir = get_resource_dir()
-        self.data_dir = get_user_data_dir() if getattr(sys, "frozen", False) else self.base_dir
+        self.data_dir = get_user_data_dir() if is_packaged_app() else self.base_dir
         self.data_file = os.path.join(self.data_dir, "lifexp_data.json")
         os.makedirs(self.data_dir, exist_ok=True)
         self.rank_icon_images = []

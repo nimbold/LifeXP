@@ -44,7 +44,7 @@ python3 main.py
 Check syntax:
 
 ```bash
-python3 -m py_compile main.py
+python3 -m py_compile main.py lifexp/*.py
 ```
 
 ## macOS ARM64 app build
@@ -78,14 +78,20 @@ Packaged macOS builds save user progress here:
 ## Files
 
 ```text
-main.py              App code
-README.md            Quick project overview
-BEGINNER_GUIDE.md    Beginner-friendly code explanation
-LifeXP.spec          PyInstaller macOS app build recipe
-lifexp_data.json     Local save file, created automatically
+main.py                App entry point and main LifeXPApp class
+lifexp/constants.py    Shared app version, XP, font, and animation values
+lifexp/runtime.py      Runtime helpers for paths, packaging, scaling, and HTTPS
+README.md              Quick project overview
+BEGINNER_GUIDE.md      Beginner-friendly code explanation
+LifeXP.spec            PyInstaller macOS app build recipe
+lifexp_data.json       Local save file, created automatically
 ```
 
 `lifexp_data.json` is personal progress data. It is not source code.
+
+`main.py` still contains most of the app while the project is small, but the
+first reusable pieces now live in the `lifexp` package. Future cleanup can move
+data, progression, themes, or animation code into more focused modules.
 
 ## Learning
 

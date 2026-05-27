@@ -1,6 +1,6 @@
 # LifeXP Beginner Guide
 
-This guide explains `main.py` for new programmers.
+This guide explains the LifeXP code for new programmers.
 
 Read it when you want to understand how the app works, why the code is arranged this way, and what each method does.
 
@@ -8,20 +8,22 @@ You do not need to memorize everything. Start with the first sections, then use 
 
 ## Reading Path
 
-Read `main.py` in this order:
+Read the files in this order:
 
-1. Constants at the top.
-2. `__init__`, which starts the app object.
-3. Theme methods, such as `get_theme_definitions` and `apply_modern_theme`.
-4. UI setup methods, such as `setup_tasks_tab` and `setup_character_tab`.
-5. Save/load methods, such as `load_data` and `save_data`.
-6. Quest methods, such as `add_task_dialog` and `complete_task`.
-7. XP methods, such as `gain_xp` and `get_xp_needed`.
-8. Report and animation methods near the bottom.
+1. `lifexp/constants.py`, which stores shared numbers and text values.
+2. `lifexp/runtime.py`, which stores small startup helper functions.
+3. `main.py`, starting with the imports.
+4. `__init__`, which starts the app object.
+5. Theme methods, such as `get_theme_definitions` and `apply_modern_theme`.
+6. UI setup methods, such as `setup_tasks_tab` and `setup_character_tab`.
+7. Save/load methods, such as `load_data` and `save_data`.
+8. Quest methods, such as `add_task_dialog` and `complete_task`.
+9. XP methods, such as `gain_xp` and `get_xp_needed`.
+10. Report and animation methods near the bottom.
 
 ## Big Picture
 
-LifeXP is one Tkinter app stored in one class:
+LifeXP is a Tkinter app mostly stored in one class:
 
 ```python
 class LifeXPApp:
@@ -50,6 +52,32 @@ self.data = self.load_data()
 ```
 
 another method can read `self.data` later.
+
+## Project Files
+
+The app has started to split into a few files:
+
+```text
+main.py
+lifexp/
+    __init__.py
+    constants.py
+    runtime.py
+```
+
+`main.py` is still the main file. It creates the window, defines `LifeXPApp`,
+builds the screens, handles quests, saves data, calculates XP, and plays
+animations.
+
+`lifexp/constants.py` stores values that many parts of the app reuse, such as
+the app version, XP settings, font limits, and popup timing.
+
+`lifexp/runtime.py` stores helper functions that do not need to be methods on
+`LifeXPApp`, such as finding app folders, detecting packaged builds, configuring
+macOS scaling, and creating the HTTPS context for update checks.
+
+This is a gradual split. The app does not need every method in its own file.
+Files become useful when they collect related code with a clear responsibility.
 
 ## Main Data
 
@@ -155,14 +183,15 @@ LifeXP uses variables for XP numbers, colors, widget references, and short calcu
 
 ### Constants
 
-A constant is a value near the top of the file that is meant to be reused.
+A constant is a value that is meant to be reused.
 
 ```python
 BASE_XP_NEEDED = 100
 ACCOUNT_BASE_XP_NEEDED = 500
 ```
 
-Changing a constant changes app behavior in one place.
+LifeXP constants live in `lifexp/constants.py`. Changing a constant changes app
+behavior in one place.
 
 ### Lists
 
@@ -414,10 +443,12 @@ Animations use this pattern:
 
 ### Starting The App
 
-1. `root = tk.Tk()` creates the main window.
-2. `app = LifeXPApp(root)` creates the app object.
-3. `__init__` prepares themes, loads data, and builds the UI.
-4. `root.mainloop()` starts listening for clicks, typing, and timers.
+1. `main.py` imports constants and runtime helpers from `lifexp`.
+2. `root = tk.Tk()` creates the main window.
+3. `configure_platform_scaling(root)` adjusts packaged macOS display scaling if needed.
+4. `app = LifeXPApp(root)` creates the app object.
+5. `__init__` prepares themes, loads data, and builds the UI.
+6. `root.mainloop()` starts listening for clicks, typing, and timers.
 
 ### Adding A Quest
 
@@ -502,7 +533,20 @@ It:
 
 ## Method Map
 
-This section lists every method in `LifeXPApp`.
+This section lists the small helper functions outside the class, then every
+method in `LifeXPApp`.
+
+### Helper Functions
+
+These functions live outside `LifeXPApp` because they do not need `self`.
+
+#### `lifexp/runtime.py`
+
+- `get_resource_dir`: returns the folder where bundled read-only app assets live.
+- `get_user_data_dir`: returns the folder where packaged builds write user progress.
+- `is_packaged_app`: checks whether LifeXP is running as a packaged app.
+- `configure_platform_scaling`: keeps packaged macOS font rendering close to normal Python runs.
+- `get_https_context`: creates an HTTPS context that works in packaged builds.
 
 ### Startup And Theme Helpers
 
@@ -677,7 +721,7 @@ This section lists every method in `LifeXPApp`.
 
 Try one change at a time:
 
-1. Change `BASE_XP_NEEDED`.
+1. Change `BASE_XP_NEEDED` in `lifexp/constants.py`.
 2. Add a default activity in `get_default_data`.
 3. Add a theme in `get_theme_definitions`.
 4. Change trophy levels in `get_tiers`.
@@ -687,7 +731,7 @@ Try one change at a time:
 After each edit, run:
 
 ```bash
-python3 -m py_compile main.py
+python3 -m py_compile main.py lifexp/*.py
 python3 main.py
 ```
 
