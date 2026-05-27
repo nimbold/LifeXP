@@ -101,6 +101,10 @@ This project is useful for learning:
 
 Start with [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) if you are new to Python or Tkinter.
 
+## License
+
+MIT License. See [LICENSE](LICENSE).
+
 ## Version
 
 `1.0.4`
