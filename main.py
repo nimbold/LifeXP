@@ -18,15 +18,23 @@ import math
 import os
 import random
 import sys
+import threading
 import time
+import urllib.error
+import urllib.request
+import webbrowser
 
 # APP_VERSION is shown in Settings. The constants below collect progression and popup
 # timing knobs so later balancing changes do not require hunting through raw numbers.
 APP_NAME = "LifeXP"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
+GITHUB_REPO = "nimbold/LifeXP"
+GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
+GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 DEFAULT_FONT_SIZE = 11
 MIN_FONT_SIZE = 10
 MAX_FONT_SIZE = 13
+PACKAGED_MACOS_MIN_TK_SCALING = 1.333
 POPUP_MODE_WITH_PARTICLES = "Popups with particles"
 POPUP_MODE_WITHOUT_PARTICLES = "Popups without particles"
 BASE_XP_NEEDED = 100
@@ -65,6 +73,18 @@ def get_user_data_dir():
     if sys.platform == "darwin":
         return os.path.join(os.path.expanduser("~"), "Library", "Application Support", APP_NAME)
     return os.path.join(os.path.expanduser("~"), f".{APP_NAME.lower()}")
+
+
+def configure_platform_scaling(root):
+    """Keeps packaged macOS font rendering close to normal Python Tkinter runs."""
+    if sys.platform != "darwin" or not getattr(sys, "frozen", False):
+        return
+    try:
+        current_scaling = float(root.tk.call("tk", "scaling"))
+    except (tk.TclError, ValueError):
+        return
+    if current_scaling < PACKAGED_MACOS_MIN_TK_SCALING:
+        root.tk.call("tk", "scaling", PACKAGED_MACOS_MIN_TK_SCALING)
 
 # ==============================================================================
 # MAIN APP CLASS
@@ -134,6 +154,7 @@ class LifeXPApp:
         # Visual configuration lives near the top so the rest of the app can reuse it.
         # Each attribute gets one color, which is later used in bars, graphs, and art.
         self.attr_colors = self.themes[self.current_theme_name]["attr_colors"].copy()
+        self.app_icon_image = self.load_app_icon_image()
         self.rank_icon_images = self.load_rank_icon_images()
 
         # Boot order matters: styles must exist before widgets are built, and data must
@@ -1012,6 +1033,16 @@ class LifeXPApp:
             except tk.TclError:
                 images.append(None)
         return images
+
+    def load_app_icon_image(self):
+        """Loads the app icon for Tk windows when the PNG asset is available."""
+        path = os.path.join(self.base_dir, "assets", "app_icon", "lifexp_icon.png")
+        try:
+            image = tk.PhotoImage(file=path)
+            self.root.iconphoto(True, image)
+            return image
+        except tk.TclError:
+            return None
 
     def update_avatar(self, tier_index, color, progress, roman="I", glow_progress=0.0, glow_color=None, ring_progress=None):
         """Draws the user title icon and a circular progress bar around it."""
@@ -2622,6 +2653,13 @@ class LifeXPApp:
             justify=tk.LEFT
         ).pack(anchor=tk.W, fill=tk.X, padx=12, pady=(4, 8))
 
+        self.update_button = ttk.Button(
+            about_frame,
+            text="Check for Update",
+            command=self.check_for_update
+        )
+        self.update_button.pack(anchor=tk.W, padx=12, pady=(0, 12))
+
         self.rescale_widget_tree(self.tab_settings)
         sync_scroll_region()
 
@@ -2711,6 +2749,103 @@ class LifeXPApp:
             "Your LifeXP progress has been reset.",
             parent=self.root
         )
+
+    @staticmethod
+    def normalize_version_parts(version):
+        """Converts a release tag like v1.2.3 into comparable integer parts."""
+        cleaned = str(version or "").strip().lower()
+        if cleaned.startswith("v"):
+            cleaned = cleaned[1:]
+        core = cleaned.split("-", 1)[0]
+        parts = []
+        for item in core.split("."):
+            digits = ""
+            for char in item:
+                if char.isdigit():
+                    digits += char
+                else:
+                    break
+            parts.append(int(digits or 0))
+        while len(parts) < 3:
+            parts.append(0)
+        return tuple(parts[:3])
+
+    @staticmethod
+    def is_newer_version(candidate, current):
+        """Returns whether candidate is newer than the current app version."""
+        return LifeXPApp.normalize_version_parts(candidate) > LifeXPApp.normalize_version_parts(current)
+
+    def check_for_update(self):
+        """Checks GitHub releases and offers to open the latest release page."""
+        button = getattr(self, "update_button", None)
+        if button is not None:
+            try:
+                button.configure(text="Checking...", state=tk.DISABLED)
+            except tk.TclError:
+                pass
+
+        def worker():
+            try:
+                request = urllib.request.Request(
+                    GITHUB_LATEST_RELEASE_API,
+                    headers={
+                        "Accept": "application/vnd.github+json",
+                        "User-Agent": f"{APP_NAME}/{APP_VERSION}"
+                    }
+                )
+                with urllib.request.urlopen(request, timeout=8) as response:
+                    release = json.loads(response.read().decode("utf-8"))
+                result = {
+                    "ok": True,
+                    "tag": release.get("tag_name", ""),
+                    "url": release.get("html_url") or GITHUB_RELEASES_URL
+                }
+            except (OSError, urllib.error.URLError, json.JSONDecodeError) as error:
+                result = {"ok": False, "error": str(error)}
+
+            try:
+                self.root.after(0, lambda: self.finish_update_check(result))
+            except tk.TclError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def finish_update_check(self, result):
+        """Shows the update-check result on the Tk main thread."""
+        button = getattr(self, "update_button", None)
+        if button is not None and button.winfo_exists():
+            try:
+                button.configure(text="Check for Update", state=tk.NORMAL)
+            except tk.TclError:
+                pass
+
+        if not result.get("ok"):
+            messagebox.showerror(
+                "Update Check Failed",
+                "LifeXP could not check GitHub releases right now.\n\n"
+                f"{result.get('error', 'Unknown error')}",
+                parent=self.root
+            )
+            return
+
+        latest_tag = result.get("tag") or APP_VERSION
+        latest_url = result.get("url") or GITHUB_RELEASES_URL
+        if self.is_newer_version(latest_tag, APP_VERSION):
+            open_release = messagebox.askyesno(
+                "Update Available",
+                f"LifeXP {latest_tag} is available.\n\n"
+                f"You are using {APP_VERSION}.\n\n"
+                "Open the GitHub release page?",
+                parent=self.root
+            )
+            if open_release:
+                webbrowser.open(latest_url)
+        else:
+            messagebox.showinfo(
+                "No Update Available",
+                f"You are using the latest LifeXP release ({APP_VERSION}).",
+                parent=self.root
+            )
 
     def refresh_theme_widgets(self):
         """Recolors already-created tk widgets after a theme change."""
@@ -5420,5 +5555,6 @@ class LifeXPApp:
 # ==============================================================================
 if __name__ == "__main__":
     root = tk.Tk()
+    configure_platform_scaling(root)
     app = LifeXPApp(root)
     root.mainloop()

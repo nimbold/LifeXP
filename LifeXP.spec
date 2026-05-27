@@ -51,13 +51,13 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="LifeXP.app",
-    icon=None,
+    icon="assets/app_icon/lifexp_icon.icns",
     bundle_identifier="com.lifexp.app",
     info_plist={
         "CFBundleDisplayName": "LifeXP",
         "CFBundleName": "LifeXP",
-        "CFBundleShortVersionString": "1.0.1",
-        "CFBundleVersion": "1.0.1",
+        "CFBundleShortVersionString": "1.0.2",
+        "CFBundleVersion": "1.0.2",
         "LSMinimumSystemVersion": "12.0",
         "NSHighResolutionCapable": True,
     },

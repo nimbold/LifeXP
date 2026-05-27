@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="LifeXP app icon">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="80" x2="864" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1A1B26"/>
+      <stop offset="1" stop-color="#24283B"/>
+    </linearGradient>
+    <linearGradient id="xp" x1="260" y1="250" x2="760" y2="790" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9ECE6A"/>
+      <stop offset="0.52" stop-color="#7AA2F7"/>
+      <stop offset="1" stop-color="#BB9AF7"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="302" fill="none" stroke="#313854" stroke-width="44"/>
+  <path d="M288 650 V358 h82 v218 h138 v74 H288Z" fill="#C0CAF5"/>
+  <path d="M558 358 h92 l70 98 70-98 h92 l-116 152 124 140 h-96 l-76-92-76 92 h-92 l122-143-114-149Z" fill="#C0CAF5"/>
+  <path d="M270 752 C398 802 642 802 770 752" fill="none" stroke="url(#xp)" stroke-width="52" stroke-linecap="round"/>
+  <path d="M742 238 l34 72 78 10-56 54 14 78-70-38-70 38 14-78-56-54 78-10 34-72Z" fill="#FFB020"/>
+</svg>
