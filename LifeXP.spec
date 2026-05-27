@@ -59,8 +59,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleDisplayName": "LifeXP",
         "CFBundleName": "LifeXP",
-        "CFBundleShortVersionString": "1.0.3",
-        "CFBundleVersion": "1.0.3",
+        "CFBundleShortVersionString": "1.0.4",
+        "CFBundleVersion": "1.0.4",
         "LSMinimumSystemVersion": "12.0",
         "NSHighResolutionCapable": True,
     },

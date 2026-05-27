@@ -103,4 +103,4 @@ Start with [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) if you are new to Python or Tk
 
 ## Version
 
-`1.0.3`
+`1.0.4`

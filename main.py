@@ -33,13 +33,15 @@ except ModuleNotFoundError:
 # APP_VERSION is shown in Settings. The constants below collect progression and popup
 # timing knobs so later balancing changes do not require hunting through raw numbers.
 APP_NAME = "LifeXP"
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 GITHUB_REPO = "nimbold/LifeXP"
 GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-DEFAULT_FONT_SIZE = 11
-MIN_FONT_SIZE = 10
-MAX_FONT_SIZE = 13
+FONT_SCALE_BASE_SIZE = 11
+DEFAULT_FONT_SIZE = 14
+MIN_FONT_SIZE = 12
+MAX_FONT_SIZE = 17
+LEGACY_MAX_FONT_SIZE = 13
 PACKAGED_MACOS_MIN_TK_SCALING = 1.333
 POPUP_MODE_WITH_PARTICLES = "Popups with particles"
 POPUP_MODE_WITHOUT_PARTICLES = "Popups without particles"
@@ -469,12 +471,12 @@ class LifeXPApp:
 
     def scaled_font_size(self, base_size):
         """Scales a hard-coded font size from the user's base preference."""
-        scale = self.font_size / float(DEFAULT_FONT_SIZE)
+        scale = self.font_size / float(FONT_SCALE_BASE_SIZE)
         return max(7, int(round(base_size * scale)))
 
     def ui_space(self, base_size):
         """Scales fixed padding and row heights with the readable font size."""
-        scale = self.font_size / float(DEFAULT_FONT_SIZE)
+        scale = self.font_size / float(FONT_SCALE_BASE_SIZE)
         return max(1, int(round(base_size * scale)))
 
     def ui_font(self, base_size=DEFAULT_FONT_SIZE, weight=None, family="{San Francisco}"):
@@ -797,8 +799,9 @@ class LifeXPApp:
     def apply_display_preferences(self, save=True):
         """Applies persisted font and animation preferences to the live app."""
         self.font_size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, int(self.font_size)))
-        min_width = self.ui_space(900)
-        min_height = self.ui_space(760)
+        window_scale = 1.0 + (max(0, self.font_size - FONT_SCALE_BASE_SIZE) / float(FONT_SCALE_BASE_SIZE) * 0.35)
+        min_width = int(round(900 * window_scale))
+        min_height = int(round(760 * window_scale))
         self.root.minsize(min_width, min_height)
         current_width = self.root.winfo_width()
         current_height = self.root.winfo_height()
@@ -2953,9 +2956,12 @@ class LifeXPApp:
             normalized["name"] = name or default_user_info["name"]
             normalized["theme"] = str(user_info.get("theme", normalized["theme"])).strip() or default_user_info["theme"]
             try:
+                saved_font_size = int(user_info.get("font_size", normalized["font_size"]))
+                if saved_font_size >= LEGACY_MAX_FONT_SIZE:
+                    saved_font_size = max(saved_font_size, DEFAULT_FONT_SIZE)
                 normalized["font_size"] = max(
                     MIN_FONT_SIZE,
-                    min(MAX_FONT_SIZE, int(user_info.get("font_size", normalized["font_size"])))
+                    min(MAX_FONT_SIZE, saved_font_size)
                 )
             except (TypeError, ValueError):
                 normalized["font_size"] = default_user_info["font_size"]
