@@ -1,688 +1,649 @@
-# LifeXP Guide Part 3: Advanced Method Atlas
+# LifeXP Guide Part 3: Advanced, But Still Beginner Friendly
 
-This part is a lookup guide for the current `LifeXPApp` class.
+This part explains the important methods and systems in `main.py`.
 
-Every method in the app is listed here. Each entry gives:
+It does not list every helper method one by one. That became too noisy. Instead, it focuses on the methods that teach the app's real structure.
 
-- what the method does
-- an example from the app
-- how to think about it
+Use this rule while reading:
 
-## How To Use This Atlas
+```text
+Understand A -> B.
+Do not chase A -> B -> C -> D on the first pass.
+```
 
-When you find a method in `main.py`:
+Example:
 
-1. Search this file for the method name.
-2. Read the one-line purpose.
-3. Look at the example call.
-4. Go back to `main.py` and read the real code slowly.
+- Good first pass: `complete_task` calls `gain_xp`.
+- Too deep for first pass: `complete_task` calls `gain_xp`, which calls `get_xp_needed`, which uses the XP curve, which uses cached totals.
 
-## Method Call Infographic
+Go one layer deeper only after the first layer makes sense.
+
+## Advanced Reading Strategy
+
+Read each important method in three passes.
 
 ```mermaid
 flowchart TD
-    A["A method is called"] --> B["It reads self.data, widgets, or arguments"]
-    B --> C{"Does it calculate, draw, save, or react?"}
-    C -->|Calculate| D["return a value"]
-    C -->|Draw| E["configure widgets or canvas"]
-    C -->|Save| F["write JSON"]
-    C -->|React| G["change data, then refresh UI"]
-    D --> H["caller continues"]
-    E --> H
-    F --> H
-    G --> H
+    A["Pass 1: Shape"] --> B["What is this method responsible for?"]
+    C["Pass 2: Data"] --> D["What data does it read or change?"]
+    E["Pass 3: Control"] --> F["What if, loop, return, or callback decides the path?"]
+    B --> C
+    D --> E
+    F --> G["Now read one helper method, but only one level deeper"]
 ```
 
-## Startup, Settings, And Theme Methods
+Use this small checklist:
+
+- Inputs: arguments, selected widgets, or `self.data`.
+- Work: calculations, validation, drawing, or saving.
+- Outputs: changed data, changed widgets, return value, or scheduled callback.
+- Next method: only the most important direct helper.
 
-- `__init__(root)`: creates the app object, stores important state, loads data, and builds the UI.
-  Example from app startup: `app = LifeXPApp(root)`.
-  Think: this is the constructor. It prepares the app before the user clicks anything.
+## The App As Four Systems
 
-- `get_theme_definitions()`: returns every theme dictionary.
-  Example from the app: `self.themes = self.get_theme_definitions()`.
-  Think: this is the app's color catalog.
+LifeXP is easier to understand as four systems:
+
+```mermaid
+flowchart LR
+    A["UI System"] --> B["Quest System"]
+    B --> C["XP System"]
+    C --> D["Reward System"]
+    B --> E["Save System"]
+    C --> F["Chronicles System"]
+    D --> A
+    F --> A
+```
+
+The main methods in those systems are:
+
+| System | Important methods | What to learn |
+| --- | --- | --- |
+| Startup and UI | `__init__`, `setup_ui`, tab setup methods | How the app is built |
+| Quest flow | `add_task_dialog`, `complete_task`, `delete_task`, edit methods | How user actions change data |
+| XP and rewards | `gain_xp`, `get_xp_needed`, `check_trophies` | How progress is calculated |
+| Saving and reports | `load_data`, `save_data`, `show_summary` | How memory becomes files and reports |
+| Visual feedback | `play_floating_text`, `schedule_level_up_sequence` | How animations are scheduled |
+
+## 1. Startup: `__init__`
+
+`__init__` is the app's setup method. It runs once when the app starts.
+
+Example:
+
+```python
+app = LifeXPApp(root)
+```
+
+Important work inside `__init__`:
 
-- `_hex_to_rgb(color)`: converts `#RRGGBB` text into red, green, and blue numbers.
-  Example from the app: `red, green, blue = self._hex_to_rgb(color)`.
-  Think: color math is easier with numbers than text.
+```python
+self.themes = self.get_theme_definitions()
+self.apply_modern_theme()
+self.data = self.load_data()
+self.setup_header()
+self.setup_ui()
+self.update_stats_display()
+self.refresh_task_list()
+```
+
+Think like the computer:
 
-- `get_contrast_ratio(foreground, background)`: measures how readable one color is on another.
-  Example from the app: `if preferred and self.get_contrast_ratio(preferred, background) >= 4.5:`.
-  Think: higher contrast means easier reading.
+1. Create default app state.
+2. Load colors.
+3. Load saved data.
+4. Build visible widgets.
+5. Fill widgets with current data.
 
-- `get_readable_text_color(background, preferred=None)`: chooses a readable text color for a background.
-  Example from the app: `return self.get_readable_text_color(background, "#0F172A")`.
-  Think: this protects the UI from low-contrast themes.
+### Startup Infographic
 
-- `get_action_color(role)`: chooses semantic colors for quest actions.
-  Example from the app: `"QuestAccept.TButton": self.get_action_color("accept")`.
-  Think: ask for a meaning like `accept`, not a hard-coded color.
+```mermaid
+sequenceDiagram
+    participant Python
+    participant App as LifeXPApp
+    participant Disk as Save File
+    participant UI as Tkinter UI
+
+    Python->>App: __init__(root)
+    App->>App: get_theme_definitions()
+    App->>App: apply_modern_theme()
+    App->>Disk: load_data()
+    App->>UI: setup_header()
+    App->>UI: setup_ui()
+    App->>UI: update_stats_display()
+```
+
+Direct helpers worth reading next:
+
+- `get_theme_definitions`: theme data.
+- `load_data`: save-file loading.
+- `setup_ui`: tab creation.
+
+Stop there on the first pass. Do not chase every theme helper yet.
+
+## 2. UI Builder: `setup_ui`
+
+`setup_ui` creates the main tabbed layout.
 
-- `get_action_text_color(background)`: chooses readable text for a colored action button.
-  Example from the app: `foreground = self.get_action_text_color(background)`.
-  Think: button text must stay readable on every theme.
+Important pattern:
 
-- `get_action_hover_color(background)`: creates a hover color for an action button.
-  Example from the app: `active_background = self.get_action_hover_color(background)`.
-  Think: hover state is a small visual change from normal state.
+```python
+self.setup_tasks_tab()
+self.setup_character_tab()
+self.setup_summary_tab()
+self.setup_settings_tab()
+```
 
-- `scaled_font_size(base_size)`: scales a hard-coded font size from the user's font setting.
-  Example from the app: `size = self.scaled_font_size(base_size)`.
-  Think: one user setting changes many fonts.
+This is a coordinator method. It does not need to know every label and button. It delegates each screen to a separate setup method.
 
-- `ui_space(base_size)`: scales padding and row heights with font size.
-  Example from the app: `padding=[self.ui_space(18), self.ui_space(9)]`.
-  Think: bigger text needs bigger spacing.
+### UI Builder Infographic
 
-- `ui_font(base_size=DEFAULT_FONT_SIZE, weight=None, family="{San Francisco}")`: returns a Tkinter font tuple.
-  Example from the app: `font=self.ui_font(11, "bold")`.
-  Think: this keeps font creation consistent.
+```mermaid
+flowchart TD
+    A["setup_ui"] --> B["setup_tasks_tab"]
+    A --> C["setup_character_tab"]
+    A --> D["setup_summary_tab"]
+    A --> E["setup_settings_tab"]
+    B --> F["Quest table and action buttons"]
+    C --> G["Stats and trophies"]
+    D --> H["Reports and graph"]
+    E --> I["Preferences and reset tools"]
+```
 
-- `coerce_bool(value, default=True)`: safely converts saved values into real booleans.
-  Example from the app: `self.animations_enabled = self.coerce_bool(self.data["user_info"].get("animations_enabled"), True)`.
-  Think: JSON or old saves might store booleans in different forms.
+How to read UI setup methods:
 
-- `apply_modern_theme()`: applies colors, fonts, and ttk styles.
-  Example from the app: `self.apply_modern_theme()`.
-  Think: this paints the shared visual rules.
+1. Find the parent frame.
+2. Notice whether widgets use `pack`, `grid`, or `place`.
+3. Find callbacks with `command=...` or `.bind(...)`.
+4. Ask what method runs when the user clicks or scrolls.
 
-- `fit_window_to_content(window, min_width=360, min_height=260, center=True)`: sizes a popup to fit its contents.
-  Example from the app: `self.fit_window_to_content(window, min_width=min_width, min_height=min_height)`.
-  Think: ask Tkinter how big the popup wants to be, then keep it on screen.
+Important callback examples:
 
-- `show_fitted_window(window, min_width=360, min_height=260)`: fits a hidden popup and then shows it.
-  Example from the app: `self.show_fitted_window(chooser, min_width=520, min_height=190)`.
-  Think: build first, measure second, reveal third.
+```python
+command=self.complete_task
+command=self.add_task_dialog
+self.notebook.bind("<<NotebookTabChanged>>", self.handle_notebook_tab_changed)
+```
+
+Supporting methods to know:
+
+- `setup_tasks_tab`: Quest Log UI.
+- `setup_character_tab`: stats and trophies.
+- `setup_summary_tab`: Chronicles UI.
+- `setup_settings_tab`: settings UI.
+
+## 3. Accepting Quests: `add_task_dialog`
 
-- `animate_window_open(window)`: fades and moves a popup into view.
-  Example from the app: `self.animate_window_open(window)`.
-  Think: the popup is still just a widget; animation changes it over time.
+`add_task_dialog` opens the Accept Quest window.
 
-- `recolor_widget_tree(widget, color_map)`: walks through child widgets and swaps old theme colors for new ones.
-  Example from the app: `self.recolor_widget_tree(child, color_map)`.
-  Think: this is a recursive tree walk.
+This method is long because it builds a popup and defines small helper functions inside it.
 
-- `rescale_widget_tree(widget)`: walks through child widgets and rescales fonts.
-  Example from the app: `self.rescale_widget_tree(child)`.
-  Think: remember each original font, then scale from that original.
+Important data:
 
-- `apply_display_preferences(save=True)`: applies font size, animation, particle, and popup settings.
-  Example from the app: `self.apply_display_preferences(save=False)`.
-  Think: settings must update both memory and visible widgets.
+```python
+attr_var = tk.StringVar(value=all_filter_label)
+activity_var = tk.StringVar()
+difficulty_var = tk.IntVar(value=5)
+pending_quests = []
+```
 
-- `configure_notebook_tab_style(selected_bg=None, active_bg=None)`: sets selected and hover tab colors.
-  Example from the app: `self.configure_notebook_tab_style(selected_bg=self.accent_green, active_bg=self.bg_light)`.
-  Think: notebook tabs have their own ttk style rules.
+What these mean:
 
-- `handle_tab_hover_motion(event)`: reacts to mouse movement over the tab bar.
-  Example from the app: `self.notebook.bind("<Motion>", self.handle_tab_hover_motion)`.
-  Think: Tkinter passes an event object when the mouse moves.
+- `attr_var`: selected attribute filter.
+- `activity_var`: typed activity text.
+- `difficulty_var`: difficulty from 1 to 10.
+- `pending_quests`: draft quests not saved yet.
 
-- `set_tab_hover(is_hovering)`: animates notebook hover color in or out.
-  Example from the app: `self.set_tab_hover(False)`.
-  Think: this method stores hover state and schedules tiny color changes.
+### Accept Quest Infographic
 
-- `play_tab_change_animation(event=None)`: pulses the selected tab.
-  Example from the app: `self.play_tab_change_animation(event)`.
-  Think: tab changes are events, and the UI responds with feedback.
+```mermaid
+flowchart TD
+    A["User opens Accept Quest"] --> B["add_task_dialog"]
+    B --> C["Build popup widgets"]
+    C --> D["User types or selects activities"]
+    D --> E["add_pending_quest"]
+    E --> F["pending_quests list"]
+    F --> G{"User clicks Accept Quest?"}
+    G -->|No| D
+    G -->|Yes| H["save() copies drafts into self.data['tasks']"]
+    H --> I["save_data"]
+    I --> J["refresh_task_list"]
+```
 
-- `handle_notebook_tab_changed(event=None)`: responds when the active tab changes.
-  Example from the app: `self.notebook.bind("<<NotebookTabChanged>>", self.handle_notebook_tab_changed)`.
-  Think: some tab content, like trophies, is prepared only when visible.
+Most important nested helpers:
 
-## Header, Rank, Icons, And Navigation
+- `update_suggestions`: rebuilds the saved activity list.
+- `add_pending_quest`: creates or updates one draft quest.
+- `refresh_selected_list`: redraws the queue preview.
+- `save`: moves draft quests into real app data.
 
-- `setup_header()`: builds the top header with title, rank text, and avatar.
-  Example from the app: `self.setup_header()`.
-  Think: this creates widgets once.
+Read only those first. Skip the small color and layout helpers until later.
 
-- `get_title_info(total_level)`: chooses rank title, color, and tier from account level.
-  Example from the app: `title, color, tier_index = self.get_title_info(total_level)`.
-  Think: input is a number; output is display information.
+## 4. Completing Quests: `complete_task`
 
-- `get_title_shape(tier_index)`: returns the fallback pixel shape for a rank tier.
-  Example from the app: `shape = self.get_title_shape(tier_index)`.
-  Think: if image assets are unavailable, the app can still draw an avatar.
+`complete_task` is the main gameplay method.
 
-- `load_rank_icon_images()`: loads generated rank medallion images.
-  Example from the app: `self.rank_icon_images = self.load_rank_icon_images()`.
-  Think: image files become Tkinter `PhotoImage` objects.
+It turns selected active quests into XP, history, trophies, and UI updates.
 
-- `load_app_icon_image()`: loads the app icon for Tk windows.
-  Example from the app: `self.app_icon_image = self.load_app_icon_image()`.
-  Think: keep a reference so Tkinter does not discard the image.
+Important shape:
 
-- `update_avatar(tier_index, color, progress, roman=None, glow_progress=0.0, glow_color=None, ring_progress=None)`: redraws the header avatar.
-  Example from the app: `self.update_avatar(tier_index, color, progress, roman=roman)`.
-  Think: avatar art is a small status display.
+```python
+indices = self.get_selected_task_indices(...)
+tasks = [self.data["tasks"][index] for index in indices]
 
-- `format_account_level_text(total_level, xp_into_level, xp_needed, total_xp)`: formats header account XP text.
-  Example from the app: `self.user_level_label.config(text=self.format_account_level_text(total_level, xp_into_level, xp_needed, total_xp))`.
-  Think: convert numbers into readable UI text.
+for task in tasks:
+    level_events.extend(self.gain_xp(attr, xp_gain))
 
-- `update_header(animate_rank=True)`: recalculates account XP and refreshes the header.
-  Example from the app: `return self.update_header(animate_rank=animate_rank)`.
-  Think: this is the header's redraw method.
+self.save_data()
+self.refresh_task_list()
+self.update_stats_display()
+```
 
-- `setup_ui()`: creates the tabbed interface.
-  Example from the app: `self.setup_ui()`.
-  Think: one method coordinates all tab builders.
+Think like the computer:
 
-- `create_pixel_icon(pattern, palette, pixel_size=3)`: turns a text pattern into a pixel icon.
-  Example from the app: `return self.create_pixel_icon(pattern, palette, pixel_size=4)`.
-  Think: each character in the pattern maps to a color.
+1. Which rows are selected?
+2. Which task dictionaries do those rows point to?
+3. For each task, how much XP is gained?
+4. What gets added to history?
+5. What gets removed from active tasks?
+6. Which methods redraw the UI?
 
-- `build_tab_icons()`: creates the icons used in the tab bar.
-  Example from the app: `self.tab_icons = self.build_tab_icons()`.
-  Think: generated icons avoid extra image files for tabs.
+### Complete Quest Infographic
 
-- `create_level_up_arrow_icon(color)`: creates a pixel arrow for level-up popups.
-  Example from the app: `trailing_icon=self.create_level_up_arrow_icon("#FF9E00")`.
-  Think: popup art can be generated the same way as tab icons.
+```mermaid
+flowchart TD
+    A["Selected quest rows"] --> B["get_selected_task_indices"]
+    B --> C["Read matching task dictionaries"]
+    C --> D["Create history records"]
+    C --> E["gain_xp for each quest"]
+    E --> F["level events"]
+    E --> G["trophy events"]
+    D --> H["Remove active tasks"]
+    H --> I["save_data"]
+    I --> J["refresh_task_list"]
+    J --> K["update_stats_display"]
+    K --> L["schedule reward animations"]
+```
 
-## Quest Action Buttons
+Direct helpers worth reading next:
 
-- `get_quest_action_palette(role)`: returns colors for one quest action button.
-  Example from the app: `palette = self.get_quest_action_palette(role)`.
-  Think: role names drive button appearance.
+- `get_selected_task_indices`: table selection to list indexes.
+- `gain_xp`: XP and level-up logic.
+- `save_data`: write progress.
+- `update_stats_display`: redraw progress.
 
-- `create_quest_action_button(parent, icon, text, role, command, strong_feedback=False)`: builds a custom quest action button.
-  Example from the app: `self.create_quest_action_button(action_stack, "+", "Accept Quest", "accept", self.add_task_dialog)`.
-  Think: the button stores its command and its colors together.
+Do not read particle animations yet. They are visual feedback, not core gameplay.
 
-- `configure_quest_surface(button, bg, fg)`: applies colors to a quest action surface.
-  Example from the app: `self.configure_quest_surface(button, self._blend_color(start, end, ratio), end_fg)`.
-  Think: a custom button is several widgets that must be recolored together.
+## 5. XP Logic: `gain_xp`
 
-- `pointer_inside_widget(widget)`: checks whether the mouse pointer is inside a widget.
-  Example from the app: `and not self.pointer_inside_widget(surface.master)`.
-  Think: screen coordinates decide whether hover should remain active.
+`gain_xp` adds XP to one attribute.
 
-- `handle_quest_hover_enter(button)`: starts hover feedback for a quest button.
-  Example from the app: `widget.bind("<Enter>", lambda event, surface=button: self.handle_quest_hover_enter(surface))`.
-  Think: enter events begin the visual state.
+Core idea:
 
-- `handle_quest_hover_leave(button)`: stops hover feedback after the pointer leaves.
-  Example from the app: `widget.bind("<Leave>", lambda event, surface=button: self.handle_quest_hover_leave(surface))`.
-  Think: leave events end the visual state.
+```python
+stat["xp"] += amount
 
-- `set_quest_button_hover(button, is_hovering)`: animates a quest button between normal and hover colors.
-  Example from the app: `self.set_quest_button_hover(button, True)`.
-  Think: animate color by blending from start to end.
+while stat["xp"] >= xp_needed:
+    stat["xp"] -= xp_needed
+    stat["level"] += 1
+```
 
-- `refresh_quest_action_buttons()`: recolors custom quest buttons after a theme change.
-  Example from the app: `self.refresh_quest_action_buttons()`.
-  Think: already-created widgets need manual updates.
+The `while` loop matters. One large XP reward might level up more than once.
 
-## Chronicles And Scrolling
+### XP Loop Infographic
 
-- `create_summary_timeframe_button(parent, label, timeframe)`: builds one Daily, Weekly, or Monthly control.
-  Example from the app: `self.create_summary_timeframe_button(button_row, "Daily", "daily")`.
-  Think: the label is visible text; the timeframe is stored data.
+```mermaid
+flowchart TD
+    A["Start with current XP"] --> B["Add quest XP"]
+    B --> C{"XP >= needed?"}
+    C -->|No| D["Keep XP in current level"]
+    C -->|Yes| E["Subtract needed XP"]
+    E --> F["Increase level"]
+    F --> G["check_trophies"]
+    G --> C
+```
 
-- `update_summary_timeframe_buttons()`: highlights the selected timeframe.
-  Example from the app: `self.update_summary_timeframe_buttons()`.
-  Think: one selected button uses accent styling.
+Important related methods:
 
-- `draw_summary_graph(totals_by_attribute)`: draws the Chronicles bar chart.
-  Example from the app: `self.summary_graph_canvas.bind("<Configure>", lambda event: self.draw_summary_graph(self.summary_attribute_totals))`.
-  Think: canvas drawing depends on current size and data.
+- `get_xp_needed`: returns XP needed for one attribute level.
+- `check_trophies`: checks whether the new level unlocks a milestone.
+- `summarize_level_events`: keeps level-up messages readable after batch completion.
 
-- `improve_color_contrast(color, background, minimum_ratio=4.5)`: adjusts a color until it is readable.
-  Example from the app: `return self.improve_color_contrast(self.attr_colors[attr], background)`.
-  Think: color can be nudged toward white or black.
+Keep the first reading focused on the loop. The exact XP curve can wait.
 
-- `get_attribute_text_color(attr, background=None)`: returns a readable text color for an attribute.
-  Example from the app: `color = self.get_attribute_text_color(attr, self.bg_light)`.
-  Think: attribute colors are not always readable as text.
+## 6. XP Cost: `get_xp_needed` And `get_scaled_xp_needed`
 
-- `get_summary_combo_colors(background=None)`: chooses report highlight colors.
-  Example from the app: `combo_colors = self.get_summary_combo_colors(body.cget("bg"))`.
-  Think: repeated activities get colored tags.
+`get_xp_needed` answers one question:
 
-- `configure_summary_body_tags(body)`: applies text tags to a report text widget.
-  Example from the app: `self.configure_summary_body_tags(body)`.
-  Think: tags let one text box contain several styles.
+```text
+How much XP is needed to pass this level?
+```
 
-- `find_summary_body_under_pointer()`: finds which report text box is under the mouse.
-  Example from the app: `body = self.find_summary_body_under_pointer()`.
-  Think: scrolling should affect the panel under the pointer.
+It uses a cache:
 
-- `_generic_scroll(event, scroll_target, speed_units)`: shared helper for mouse-wheel and trackpad scrolling.
-  Example from the app: `return self._generic_scroll(event, body, speed_units=4)`.
-  Think: normalize different scroll event shapes into one behavior.
+```python
+if level not in self.xp_needed_cache:
+    self.xp_needed_cache[level] = self.get_scaled_xp_needed(level, BASE_XP_NEEDED)
+return self.xp_needed_cache[level]
+```
 
-- `scroll_summary_body(event)`: scrolls the report body under the pointer.
-  Example from the app: `return self.scroll_summary_body(event)`.
-  Think: route the event to the right text widget.
+Beginner translation:
 
-- `scroll_settings_canvas(event)`: scrolls the Settings canvas.
-  Example from the app: `return self.scroll_settings_canvas(event)`.
-  Think: Settings is taller than the window, so it has a canvas scroll area.
+1. If we already calculated this level, reuse the answer.
+2. If not, calculate it once and remember it.
 
-- `create_modern_scrollbar(parent, target, width=14)`: creates a custom canvas scrollbar.
-  Example from the app: `scrollbar = self.create_modern_scrollbar(table_frame, self.task_tree)`.
-  Think: the scrollbar mirrors the target widget's vertical position.
+### Cache Infographic
 
-- `route_global_scroll(event)`: sends wheel events to the correct scrollable area.
-  Example from the app: `self.root.bind_all(sequence, self.route_global_scroll)`.
-  Think: global events need routing because the app has several scroll regions.
+```mermaid
+flowchart LR
+    A["Ask for level cost"] --> B{"Is level in cache?"}
+    B -->|Yes| C["Return saved cost"]
+    B -->|No| D["Calculate cost"]
+    D --> E["Store in cache"]
+    E --> C
+```
 
-- `bind_global_scroll_events()`: installs the app-wide scroll router.
-  Example from the app: `self.bind_global_scroll_events()`.
-  Think: bind once after the UI exists.
+`get_scaled_xp_needed` contains the math curve. You do not need to memorize the formula. Read it as:
 
-## Quest Button Feedback
+```text
+base XP + level curve = cost for this level
+```
 
-- `run_quest_action(button, command, strong_feedback=False)`: runs a quest command after click feedback.
-  Example from the app: `widget.bind("<Button-1>", lambda event, surface=button: self.run_quest_action(surface, command, strong_feedback))`.
-  Think: visual feedback happens before the action.
+## 7. Trophies: `check_trophies`, `get_tiers`, `draw_trophy`
 
-- `play_quest_button_miss(button)`: flashes Complete when no quest is selected.
-  Example from the app: `self.play_quest_button_miss(button)`.
-  Think: user feedback can explain why nothing happened.
+Trophies are rewards for reaching milestone levels.
 
-- `play_quest_button_feedback(button, strong=False, on_done=None)`: pulses a quest button frame.
-  Example from the app: `self.play_quest_button_feedback(button, strong=strong_feedback, on_done=command)`.
-  Think: `on_done` is a callback that runs after animation.
+`check_trophies` asks:
 
-## Screen Builders And Trophy Room
+```text
+Did this attribute just reach a trophy level?
+```
 
-- `setup_tasks_tab()`: builds Quest Log.
-  Example from the app: `self.setup_tasks_tab()`.
-  Think: create the table and action buttons.
+Important idea:
 
-- `get_tiers()`: returns trophy milestone tiers that should be shown.
-  Example from the app: `tiers = self.get_tiers()`.
-  Think: high-level trophies appear after enough progress.
+```python
+for tier_name, level_req in self.get_tiers():
+    if new_level == level_req:
+        trophy_name = f"{attribute} {tier_name}"
+```
 
-- `calculate_trophy_canvas_size(tiers)`: chooses a trophy canvas size for the available room.
-  Example from the app: `size = self.calculate_trophy_canvas_size(tiers)`.
-  Think: fit art to current window size.
+### Trophy Infographic
 
-- `schedule_trophy_room_resize(event=None)`: debounces trophy resizing.
-  Example from the app: `self.trophies_frame.bind("<Configure>", self.schedule_trophy_room_resize)`.
-  Think: resizing fires many events, so wait briefly before redrawing.
+```mermaid
+flowchart TD
+    A["Attribute levels up"] --> B["check_trophies"]
+    B --> C["get_tiers"]
+    C --> D{"New level matches tier?"}
+    D -->|No| E["No trophy"]
+    D -->|Yes| F["Add trophy name to self.data['trophies']"]
+    F --> G["draw_trophy shows earned art"]
+```
 
-- `trophy_room_has_visible_geometry()`: checks whether the trophy room has a real size.
-  Example from the app: `if self.trophy_room_has_visible_geometry():`.
-  Think: do not draw layout before Tkinter has measured it.
+Important methods:
 
-- `prepare_visible_trophy_room()`: builds trophies after the Character tab is visible.
-  Example from the app: `self.prepare_visible_trophy_room()`.
-  Think: delayed setup avoids drawing into a zero-size area.
+- `get_tiers`: decides which milestone levels exist.
+- `check_trophies`: awards trophy names.
+- `draw_trophy`: draws trophy art on a canvas.
 
-- `resize_trophy_canvases()`: resizes trophy canvases and redraws art.
-  Example from the app: `self.resize_trophy_canvases()`.
-  Think: canvas size and drawn art must match.
+Do not start with all drawing details. First understand that trophy art is a visual result of data.
 
-- `redraw_trophies(tiers)`: redraws every trophy.
-  Example from the app: `self.redraw_trophies(tiers)`.
-  Think: loop over attributes and tiers.
+## 8. Saving: `load_data`, Normalizers, And `save_data`
 
-- `rebuild_trophy_room()`: rebuilds the full trophy grid.
-  Example from the app: `self.rebuild_trophy_room()`.
-  Think: destroy old trophy widgets, then create a fresh grid.
+`load_data` is more than "open a file." It also repairs old or messy data.
 
-- `setup_character_tab()`: builds Character Info.
-  Example from the app: `self.setup_character_tab()`.
-  Think: create stat rows and trophy room.
+Important shape:
 
-- `setup_summary_tab()`: builds Chronicles.
-  Example from the app: `self.setup_summary_tab()`.
-  Think: create report controls, metric cards, graph, and activity cards.
+```python
+default_data = self.get_default_data()
 
-- `draw_font_size_slider()`: draws the custom font-size slider.
-  Example from the app: `self.draw_font_size_slider()`.
-  Think: slider position comes from `self.font_size`.
+with open(self.data_file, "r", encoding="utf-8") as f:
+    data = json.load(f)
 
-- `set_font_size_from_slider_event(event)`: changes slider value from mouse position.
-  Example from the app: `self.font_size_canvas.bind("<Button-1>", self.set_font_size_from_slider_event)`.
-  Think: mouse x-coordinate becomes a font-size choice.
+data["stats"] = self.normalize_stats(...)
+data["tasks"] = self.normalize_tasks(...)
+data["history"] = self.normalize_history(...)
+```
 
-- `apply_font_size_from_slider()`: applies the selected display scale after a short delay.
-  Example from the app: `self.apply_font_size_from_slider()`.
-  Think: debounce prevents too many full UI refreshes while dragging.
+### Save System Infographic
 
-- `setup_settings_tab()`: builds Settings.
-  Example from the app: `self.setup_settings_tab()`.
-  Think: create theme controls, display settings, update check, and reset tools.
+```mermaid
+flowchart TD
+    A["load_data"] --> B{"Save file exists?"}
+    B -->|No| C["Use get_default_data"]
+    B -->|Yes| D["Read JSON"]
+    D --> E["migrate_renamed_attributes"]
+    E --> F["normalize_user_info"]
+    F --> G["normalize_stats"]
+    G --> H["normalize_tasks"]
+    H --> I["normalize_history"]
+    I --> J["self.data"]
+```
 
-## Theme Changes, Updates, And Data Cleanup
+Important helpers:
 
-- `set_theme(theme_name, save=True)`: applies a theme and optionally saves it.
-  Example from the app: `command=lambda: self.set_theme(selected_theme.get())`.
-  Think: change colors, then refresh visible widgets.
+- `get_default_data`: safe starting shape.
+- `normalize_user_info`: preferences and account info.
+- `normalize_stats`: levels and XP.
+- `normalize_tasks`: active quest records.
+- `normalize_history`: completed quest records.
 
-- `reset_progress()`: clears saved progress after confirmation.
-  Example from the app: `command=self.reset_progress`.
-  Think: destructive actions ask first.
+`save_data` is simpler:
 
-- `normalize_version_parts(version)`: converts version text into comparable numbers.
-  Example from the app: `LifeXPApp.normalize_version_parts(candidate) > LifeXPApp.normalize_version_parts(current)`.
-  Think: `v1.2.3` becomes a tuple-like number list.
+```python
+with open(temp_file, "w", encoding="utf-8") as f:
+    json.dump(self.data, f, indent=4)
+os.replace(temp_file, self.data_file)
+```
 
-- `is_newer_version(candidate, current)`: checks whether one version is newer.
-  Example from the app: `if self.is_newer_version(latest_tag, APP_VERSION):`.
-  Think: compare release versions safely.
+Beginner translation:
 
-- `check_for_update()`: checks GitHub releases for a newer version.
-  Example from the app: `command=self.check_for_update`.
-  Think: run network work outside the main UI path.
+1. Write the new save to a temporary file.
+2. Replace the old save with the new one.
 
-- `finish_update_check(result)`: shows the update-check result in Tkinter.
-  Example from the app: `self.root.after(0, lambda: self.finish_update_check(result))`.
-  Think: background work returns to the main thread before touching widgets.
+## 9. Reports: `show_summary`
 
-- `refresh_theme_widgets()`: recolors widgets after theme changes.
-  Example from the app: `self.refresh_theme_widgets()`.
-  Think: ttk styles are not enough for every normal Tk widget.
+`show_summary` builds Chronicles.
 
-- `_calculate_max_level()`: finds the highest current attribute level.
-  Example from the app: `self._max_stat_level = self._calculate_max_level()`.
-  Think: trophy tier display depends on the highest level.
+It reads history records, filters by date, groups by attribute, and redraws report widgets.
 
-- `_invalidate_subcategory_cache()`: clears cached autocomplete data.
-  Example from the app: `self._invalidate_subcategory_cache()`.
-  Think: when activity names change, cached lists are stale.
+Important shape:
 
-- `_invalidate_tier_cache()`: clears cached trophy tier data.
-  Example from the app: `self._invalidate_tier_cache()`.
-  Think: when max level changes, visible tiers may change.
+```python
+for record in self.data["history"]:
+    record_date = self.parse_history_date(record["date"])
 
-- `normalize_user_info(user_info, default_user_info)`: validates saved preferences.
-  Example from the app: `data["user_info"] = self.normalize_user_info(data.get("user_info"), default_data["user_info"])`.
-  Think: old or edited saves should not crash startup.
+    if record_date >= target_date:
+        completed_tasks += 1
+        total_xp += xp
+```
 
-- `normalize_subcategories(subcategories, default_subcategories)`: cleans saved activity suggestions.
-  Example from the app: `data["subcategories"] = self.normalize_subcategories(data.get("subcategories"), default_data["subcategories"])`.
-  Think: keep only useful strings and add missing defaults.
+### Report Infographic
 
-- `get_default_data()`: returns a complete fresh save structure.
-  Example from the app: `default_data = self.get_default_data()`.
-  Think: this is the safe shape the rest of the app expects.
+```mermaid
+flowchart TD
+    A["self.data['history']"] --> B["parse_history_date"]
+    B --> C{"Inside selected timeframe?"}
+    C -->|No| D["Skip record"]
+    C -->|Yes| E["Count quest"]
+    E --> F["Add XP"]
+    F --> G["Group by attribute and activity"]
+    G --> H["draw_summary_graph"]
+    G --> I["Fill Chronicles cards"]
+```
 
-- `get_attribute_rename_map()`: lists old attribute names and their current names.
-  Example from the app: `rename_map = self.get_attribute_rename_map()`.
-  Think: migrations need a translation table.
+Important helpers:
 
-- `migrate_renamed_attributes(data)`: updates old save files in place.
-  Example from the app: `self.migrate_renamed_attributes(data)`.
-  Think: change old names before normal validation.
+- `parse_history_date`: turns date text into a `datetime`.
+- `draw_summary_graph`: draws the XP bars.
+- `configure_summary_body_tags`: styles report text.
 
-- `parse_history_date(date_value)`: converts saved date text into a `datetime`.
-  Example from the app: `self.parse_history_date(date_value)`.
-  Think: reports compare dates, not raw strings.
+Do not start with text tags. First understand the filter and grouping.
 
-- `add_saved_subcategory(attr, name)`: saves a new activity suggestion.
-  Example from the app: `self.add_saved_subcategory(quest["attribute"], quest["name"])`.
-  Think: user-created activities become future suggestions.
+## 10. Theme And Display Updates
 
-- `load_data()`: reads JSON, migrates old data, and normalizes it.
-  Example from the app: `self.data = self.load_data()`.
-  Think: loading is also data repair.
+Theme methods are important because they show how a UI can be redrawn without rebuilding the whole app.
 
-- `normalize_stats(stats, default_stats)`: validates saved stat records.
-  Example from the app: `data["stats"] = self.normalize_stats(data.get("stats"), default_data["stats"])`.
-  Think: each attribute must have a valid level and XP.
+Important methods:
 
-- `normalize_tasks(tasks)`: validates active quest records.
-  Example from the app: `data["tasks"] = self.normalize_tasks(data.get("tasks"))`.
-  Think: bad tasks are skipped before they can crash the UI.
+- `get_theme_definitions`: stores theme colors.
+- `apply_modern_theme`: applies shared ttk styles.
+- `set_theme`: changes the selected theme.
+- `refresh_theme_widgets`: updates already-created normal Tk widgets.
+- `get_readable_text_color`: keeps text readable.
 
-- `normalize_history(history)`: validates completed quest records.
-  Example from the app: `data["history"] = self.normalize_history(data.get("history"))`.
-  Think: reports should only read valid records.
+### Theme Infographic
 
-- `save_data()`: writes current data to disk.
-  Example from the app: `self.save_data()`.
-  Think: convert Python dictionaries and lists into JSON text.
+```mermaid
+flowchart LR
+    A["User chooses theme"] --> B["set_theme"]
+    B --> C["apply_modern_theme"]
+    C --> D["refresh_theme_widgets"]
+    D --> E["redraw trophies and reports"]
+    C --> F["get_readable_text_color"]
+```
 
-## Quest Data And Dialogs
+Important idea:
 
-- `refresh_task_list()`: redraws the Quest Log table from `self.data["tasks"]`.
-  Example from the app: `self.refresh_task_list()`.
-  Think: visual rows are rebuilt from memory.
+```text
+ttk widgets use styles.
+normal tk widgets often store colors directly.
+```
 
-- `toggle_task_tree_selection(event)`: toggles selected tasks with Command or Control click.
-  Example from the app: `self.task_tree.bind("<Command-Button-1>", self.toggle_task_tree_selection)`.
-  Think: custom selection behavior starts from a click event.
+That is why both `apply_modern_theme` and `refresh_theme_widgets` exist.
 
-- `get_selected_task_indices(empty_message=None)`: returns valid selected quest indexes.
-  Example from the app: `indices = self.get_selected_task_indices(empty_message)`.
-  Think: convert selected table row IDs into list indexes.
+## 11. Animations: `play_floating_text` And `root.after`
 
-- `get_selected_task_index(empty_message=None)`: returns one selected quest index.
-  Example from the app: `index = self.get_selected_task_index("Select a quest to edit.")`.
-  Think: single-edit actions need exactly one row.
+Animations are not magic. They are repeated small updates.
 
-- `add_task_dialog()`: opens the Accept Quest window.
-  Example from the app: `self.create_quest_action_button(action_stack, "+", "Accept Quest", "accept", self.add_task_dialog)`.
-  Think: build a popup, collect draft quests, then save them.
+Important pattern:
 
-- `edit_task_dialog()`: edits one selected quest or starts batch editing.
-  Example from the app: `self.create_quest_action_button(action_stack, "✎", "Edit Quest", "edit", self.edit_task_dialog)`.
-  Think: selection count decides which editor opens.
+```python
+def animate(step=0):
+    # move or fade something
+    self.root.after(next_delay, animate, step + 1)
+```
 
-- `edit_multiple_tasks_dialog(indices)`: edits several selected quests.
-  Example from the app: `self.edit_multiple_tasks_dialog(indices)`.
-  Think: build controls for each selected row, then validate all updates.
+### Animation Infographic
 
-- `delete_task()`: abandons selected quests without XP.
-  Example from the app: `self.create_quest_action_button(action_stack, "×", "Abandon Quest", "abandon", self.delete_task)`.
-  Think: remove from active tasks, save, refresh.
+```mermaid
+flowchart TD
+    A["Create popup widget"] --> B["animate step 0"]
+    B --> C["Move, resize, or fade"]
+    C --> D{"More steps?"}
+    D -->|Yes| E["root.after schedules next step"]
+    E --> B
+    D -->|No| F["Destroy or recycle widget"]
+```
 
-- `complete_task()`: completes selected quests, grants XP, records history, and refreshes the UI.
-  Example from the app: `self.create_quest_action_button(action_stack, "✓", "Complete Quest", "complete", self.complete_task, strong_feedback=True)`.
-  Think: this is the main gameplay method.
+Important animation methods:
 
-## XP, Activity Lookup, And Trophies
+- `play_floating_text`: reward text popup.
+- `schedule_level_up_sequence`: orders XP, level-up, rank-up, and trophy messages.
+- `play_firework_particles`: larger particle burst.
+- `play_particles`: smaller particle burst.
 
-- `get_scaled_xp_needed(level, base_xp)`: calculates level cost from the XP curve.
-  Example from the app: `self.xp_needed_cache[level] = self.get_scaled_xp_needed(level, BASE_XP_NEEDED)`.
-  Think: normalize a curve to this app's chosen base XP.
+Read `play_floating_text` first. It teaches the basic pattern. Particle methods are the same idea with more objects.
 
-- `get_xp_needed(level)`: returns XP needed for an attribute level.
-  Example from the app: `xp_needed = self.get_xp_needed(level)`.
-  Think: use cache when possible.
+## 12. Update Checking: `check_for_update`
 
-- `_get_total_xp_before_level_generic(level, cache, single_needed_func)`: shared helper for cumulative XP.
-  Example from the app: `return self._get_total_xp_before_level_generic(level, self.total_xp_before_level_cache, self.get_xp_needed)`.
-  Think: one cumulative algorithm works for attributes and account rank.
+This is a useful advanced example because it shows background work.
 
-- `get_total_xp_before_level(level)`: returns cumulative attribute XP before a level.
-  Example from the app: `return stat["xp"] + self.get_total_xp_before_level(stat["level"])`.
-  Think: current-level XP is not enough for lifetime totals.
+Important idea:
 
-- `get_total_xp_for_stat(stat)`: returns lifetime XP for one attribute.
-  Example from the app: `total_xp = sum(self.get_total_xp_for_stat(stat) for stat in self.data["stats"].values())`.
-  Think: add spent XP from previous levels to current XP.
+```text
+Network request happens in a worker thread.
+Tkinter UI update happens back on the main thread.
+```
 
-- `get_account_xp_needed(level)`: returns XP needed for the next account level.
-  Example from the app: `xp_needed = self.get_account_xp_needed(level)`.
-  Think: account rank uses a larger base XP than attributes.
+### Update Check Infographic
 
-- `get_total_account_xp_before_level(level)`: returns cumulative account XP before a level.
-  Example from the app: `while self.get_total_account_xp_before_level(high) <= total_xp:`.
-  Think: used to locate the current account level.
+```mermaid
+sequenceDiagram
+    participant UI as Settings Button
+    participant Worker as Background Thread
+    participant GitHub
+    participant Tk as Tk Main Thread
 
-- `get_account_level_progress(total_xp)`: converts total XP into level progress.
-  Example from the app: `total_level, xp_into_level, xp_needed = self.get_account_level_progress(total_xp)`.
-  Think: input total XP, output display-ready progress numbers.
+    UI->>Worker: start check_for_update worker
+    Worker->>GitHub: request latest release
+    GitHub-->>Worker: release JSON or error
+    Worker->>Tk: root.after(...)
+    Tk->>UI: finish_update_check(result)
+```
 
-- `get_all_subcategories()`: returns all saved activity names once.
-  Example from the app: `available_subs = self.get_all_subcategories()`.
-  Think: used by the All filter in Accept Quest.
+Important methods:
 
-- `get_known_activity_owner(activity_name)`: finds which attribute owns an activity.
-  Example from the app: `known_owner = self.get_known_activity_owner(activity_name)`.
-  Think: known activities do not need the user to choose an attribute.
+- `check_for_update`: starts the request.
+- `finish_update_check`: shows the result.
+- `get_https_context`: prepares HTTPS safely for packaged builds.
 
-- `get_subcategory_owner_map()`: builds an activity-to-attribute lookup.
-  Example from the app: `owner_map = self.get_subcategory_owner_map()`.
-  Think: dictionaries make lookup fast.
+Do not mix Tkinter widget updates directly into the worker thread. The app uses `root.after(...)` to return to the UI thread.
 
-- `gain_xp(attribute, amount)`: adds XP and returns level-up events.
-  Example from the app: `level_events.extend(self.gain_xp(attr, xp_gain))`.
-  Think: XP can produce zero, one, or many level-ups.
+## Small Supporting Method Groups
 
-- `summarize_level_events(level_events)`: collapses many level-up events per attribute into one final event.
-  Example from the app: `level_events = self.summarize_level_events(level_events)`.
-  Think: multi-quest completion should show concise rewards.
+These helpers matter, but they are not the best place to start.
 
-- `check_trophies(attribute, new_level)`: awards a trophy at milestone levels.
-  Example from the app: `trophy_name = self.check_trophies(attribute, stat["level"])`.
-  Think: level changes may unlock visual rewards.
+### Position Helpers
 
-- `_trophy_material(level_req, progress)`: chooses trophy colors for a tier.
-  Example from the app: `primary, shadow, highlight, accent = self._trophy_material(level_req, progress)`.
-  Think: locked and earned trophies use different materials.
+- `get_center`: returns the app center.
+- `clamp_widget_position`: keeps a widget inside the app.
+- `clamp_box_position`: keeps a known-size popup inside the app.
 
-- `draw_attribute_symbol(canvas, attr, cx, cy, size, color, line_color)`: draws an attribute emblem.
-  Example from the app: `self.draw_attribute_symbol(canvas, attr, cx + s * 0.012, medallion_cy + s * 0.014, symbol_size, display_color, line_color)`.
-  Think: each attribute gets a small custom drawing.
+Read these when you study popups.
 
-- `draw_trophy(canvas, attr, progress, color, level_req)`: draws one trophy.
-  Example from the app: `self.draw_trophy(canvas, attr, progress, self.attr_colors[attr], level_req)`.
-  Think: canvas art is rebuilt from data.
+### Color Helpers
 
-- `update_stats_display(animate_rank=True)`: refreshes stat labels, bars, trophies, header, and summary.
-  Example from the app: `self.update_stats_display()`.
-  Think: call this after XP or settings change what the user sees.
+- `_hex_to_rgb`: text color to number channels.
+- `_blend_color`: blend two colors.
+- `improve_color_contrast`: adjust color readability.
 
-- `show_summary(timeframe)`: builds Daily, Weekly, or Monthly Chronicles.
-  Example from the app: `self.show_summary(self.current_summary_timeframe)`.
-  Think: filter history, group records, then redraw report widgets.
+Read these when you study themes and animations.
 
-## Animation And Popup Helpers
+### Cache Helpers
 
-- `get_center()`: returns the center of the app window.
-  Example from the app: `cx, cy = self.get_center()`.
-  Think: reward popups need an anchor point.
+- `_invalidate_subcategory_cache`: clear activity lookup cache.
+- `_invalidate_tier_cache`: clear trophy tier cache.
+- `_get_total_xp_before_level_generic`: shared cumulative XP helper.
 
-- `clamp_widget_position(widget, x, y, padding=12)`: keeps a widget inside the app window.
-  Example from the method: `safe_x = max(padding + half_w, min(x, root_w - padding - half_w))`.
-  Think: popup coordinates should not leave the visible area.
+Read these after you understand the main data they cache.
 
-- `clamp_box_position(width, height, x, y, padding=12)`: keeps a box inside the app window.
-  Example from the app: `safe_x, safe_y = self.clamp_box_position(popup_w, popup_h, x, y + (stack_offset * stack_direction))`.
-  Think: this version works before a widget object has final geometry.
+### Scroll Helpers
 
-- `ease_out_cubic(progress)`: makes motion start fast and slow down.
-  Example from the app: `eased = self.ease_out_cubic(progress)`.
-  Think: progress goes from `0.0` to `1.0`.
+- `_generic_scroll`: shared scroll math.
+- `scroll_summary_body`: scroll Chronicles cards.
+- `scroll_settings_canvas`: scroll Settings.
+- `route_global_scroll`: sends wheel events to the right place.
 
-- `ease_smoothstep(progress)`: makes motion start and end softly.
-  Example from the app: `ratio = self.ease_smoothstep(index / float(frames))`.
-  Think: use this for gentle transitions.
+Read these after you understand the UI layout.
 
-- `_blend_color(c1, c2, ratio)`: blends two hex colors.
-  Example from the app: `return self._blend_color(background, "#FFFFFF", 0.18)`.
-  Think: ratio `0` is the first color; ratio `1` is the second.
+## What To Read First In `main.py`
 
-- `set_popup_alpha(popup, alpha)`: changes popup transparency when supported.
-  Example from the app: `self.set_popup_alpha(window, 1.0)`.
-  Think: operating systems may support transparency differently.
+Use this order:
 
-- `raise_popup_window(popup)`: keeps a popup above the main app window.
-  Example from the app: `self.raise_popup_window(popup)`.
-  Think: delayed popups should not appear behind the app.
+```mermaid
+flowchart TD
+    A["__init__"] --> B["setup_ui"]
+    B --> C["setup_tasks_tab"]
+    C --> D["add_task_dialog"]
+    C --> E["complete_task"]
+    E --> F["gain_xp"]
+    F --> G["get_xp_needed"]
+    F --> H["check_trophies"]
+    E --> I["save_data"]
+    E --> J["update_stats_display"]
+    J --> K["show_summary"]
+```
 
-- `popup_duration_ms(duration_steps)`: converts animation steps to milliseconds.
-  Example from the app: `return int(self.popup_duration_ms(duration_steps) * start_ratio)`.
-  Think: schedules need milliseconds, animations use steps.
+This path teaches the core app without getting lost in every helper branch.
 
-- `popup_overlap_start_ms(duration_steps, start_ratio=REWARD_CHAIN_START_RATIO)`: decides when the next popup may start.
-  Example from the app: `first_reward_delay = self.popup_overlap_start_ms(XP_POPUP_STEPS, XP_TO_REWARD_START_RATIO)`.
-  Think: reward messages can overlap slightly instead of waiting fully.
+## Final Advice
 
-- `schedule_level_up_sequence(level_events, rank_event=None)`: schedules rank, level, and trophy rewards.
-  Example from the app: `self.schedule_level_up_sequence(level_events, rank_event)`.
-  Think: this coordinates several animations in order.
+When a method feels too large, write a tiny summary above it in your own notes:
 
-- `play_level_up_batch(events)`: shows grouped level-up popups for multi-quest completion.
-  Example from the app: `self.root.after(first_reward_delay, lambda events=level_events: self.play_level_up_batch(events))`.
-  Think: several level-ups can be displayed as one batch.
+```text
+complete_task:
+selected rows -> history + XP -> save -> redraw -> rewards
+```
 
-- `play_level_up_animation(event, x=None, y=None, duration_steps=LEVEL_UP_POPUP_STEPS, fade_steps=LEVEL_UP_POPUP_FADE_STEPS, particle_count=54, stack=False)`: shows one level-up popup.
-  Example from the app: `popup_boxes.append(self.play_level_up_animation(event, x=x, y=y, duration_steps=BATCH_LEVEL_UP_POPUP_STEPS))`.
-  Think: event data decides text, color, and trophy follow-up.
+That summary is enough for the first pass.
 
-- `play_level_up_batch_particles(events, popup_boxes)`: creates shared particles around a level-up batch.
-  Example from the app: `self.play_level_up_batch_particles(events, popup_boxes)`.
-  Think: one particle burst can support several popup boxes.
-
-- `play_rank_up_animation(rank_event)`: animates account rank in the header.
-  Example from the app: `self.play_rank_up_animation(rank_event)`.
-  Think: rank-up feedback belongs near the rank display.
-
-- `play_trophy_animation_at_center(trophy_name)`: positions trophy rewards near the center stack.
-  Example from the app: `self.root.after(next_delay, lambda trophy=trophy: self.play_trophy_animation_at_center(trophy))`.
-  Think: trophy messages are delayed after level-up messages.
-
-- `play_trophy_animation(trophy_name, x, y)`: shows trophy text and particles.
-  Example from the app: `self.play_trophy_animation(trophy_name, cx, cy + 112)`.
-  Think: this is the visible trophy reward.
-
-- `acquire_particle_widget(color, size)`: gets a reusable particle widget.
-  Example from the app: `particle, token = self.acquire_particle_widget(p_color, size)`.
-  Think: widget pooling avoids creating too many widgets.
-
-- `register_particle_widget(widget)`: tracks active particle widgets.
-  Example from the app: `self.register_particle_widget(widget)`.
-  Think: the app caps active particles for performance.
-
-- `release_particle_widget(widget, token=None)`: hides a particle and returns it to the pool.
-  Example from the app: `self.root.after(PARTICLE_HARD_LIFETIME_MS, lambda w=widget, t=token: self.release_particle_widget(w, t))`.
-  Think: cleanup can be scheduled after a lifetime.
-
-- `destroy_particle_widget(widget, token=None)`: compatibility wrapper for particle cleanup.
-  Example from the app: `self.destroy_particle_widget(particle["widget"], particle["token"])`.
-  Think: old code can call destroy while the pool handles reuse.
-
-- `play_floating_text(text, color, x, y, size=18, shake=False, duration_steps=70, fade_steps=20, trailing_icon=None, stack=False)`: creates floating reward text.
-  Example from the app: `self.play_floating_text(f"+{total_xp_gain} XP!", "#EBCB8B", cx, cy, size=30)`.
-  Think: text appears, drifts, fades, then disappears.
-
-- `play_firework_particles(color, source_box, count=80, rainbow=False, palette=None, physics=False, life_range=(40, 68), fade_start_ratio=0.35)`: creates firework particles.
-  Example from the app: `self.play_firework_particles("#EBCB8B", popup_box, count=34, palette=["#EBCB8B", "#FFD166"], physics=True)`.
-  Think: particles start near a popup and move outward.
-
-- `play_particles(color, x, y, count=15, gravity=True, rainbow=False)`: creates smaller burst particles.
-  Example from the app: `self.play_particles("#BF616A", cx, cy, count=min(32, 10 + (count * 5)), gravity=True)`.
-  Think: this is a simpler particle effect.
-
-## Runtime Helper Atlas
-
-These functions live in `lifexp/runtime.py`, outside the class.
-
-- `get_resource_dir()`: returns the folder for bundled assets.
-  Example from the app: `self.base_dir = get_resource_dir()`.
-  Think: packaged apps and source checkouts store resources differently.
-
-- `get_user_data_dir()`: returns the folder for packaged user data.
-  Example from the app: `self.data_dir = get_user_data_dir() if is_packaged_app() else self.base_dir`.
-  Think: installed apps should not save progress inside read-only app files.
-
-- `is_packaged_app()`: returns whether the app is running as a frozen package.
-  Example from the app: `self.data_dir = get_user_data_dir() if is_packaged_app() else self.base_dir`.
-  Think: packaged builds need different paths.
-
-- `configure_platform_scaling(root)`: fixes packaged macOS Tk scaling when needed.
-  Example from startup: `configure_platform_scaling(root)`.
-  Think: UI scale can differ between source and packaged app.
-
-- `get_https_context()`: returns an HTTPS context for update checks.
-  Example from the app: `urllib.request.urlopen(request, timeout=8, context=get_https_context())`.
-  Think: packaged apps may need bundled certificates.
-
-## Final Reading Strategy
-
-Read each method in three passes:
-
-1. Shape pass: read the method name, arguments, and docstring.
-2. Data pass: underline every `self.data`, list, dictionary, and variable change.
-3. Control pass: follow every `if`, `for`, `while`, `return`, and callback.
-
-When you can explain what data comes in, what branch runs, and what changes afterward, you understand the method.
+Then choose one direct helper, such as `gain_xp`, and repeat the same process.

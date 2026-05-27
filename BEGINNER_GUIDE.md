@@ -2,7 +2,7 @@
 
 This guide is split into three smaller parts.
 
-Read them in order if you are new to the project. Jump to the advanced atlas when you need to look up one specific method.
+Read them in order if you are new to the project. Jump to the advanced part when you want to understand the main methods and systems more deeply.
 
 ## Parts
 
@@ -13,15 +13,15 @@ Read them in order if you are new to the project. Jump to the advanced atlas whe
    Understand Tkinter, JSON saves, XP flow, reports, themes, and diagrams of the main systems.
 
 3. [Advanced](docs/beginner-guide/03-advanced.md)
-   Use the complete method atlas. Every current `LifeXPApp` method is listed with a simple explanation and an example from the app.
+   Study the important methods, direct helper relationships, and larger code flows with beginner-friendly diagrams.
 
 ## Best Reading Order
 
 ```mermaid
 flowchart LR
     A["Start: Beginners"] --> B["Intermediate systems"]
-    B --> C["Advanced method atlas"]
-    C --> D["Read main.py with the atlas open"]
+    B --> C["Advanced system guide"]
+    C --> D["Read main.py with the guide open"]
 ```
 
 ## Quick Advice
