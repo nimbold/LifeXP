@@ -29,20 +29,7 @@ When code feels confusing, slow down and ask:
 
 LifeXP is a Tkinter desktop app. The user clicks buttons, the app changes Python data, and then the app redraws widgets.
 
-```mermaid
-flowchart TD
-    A["User clicks a Tkinter button"] --> B["Callback method runs"]
-    B --> C["Method reads self.data"]
-    C --> D{"Need to choose a path?"}
-    D -->|if yes| E["Run one branch"]
-    D -->|if no| F["Continue downward"]
-    E --> G["Change lists and dictionaries"]
-    F --> G
-    G --> H{"Need to repeat?"}
-    H -->|for / while| I["Loop through work"]
-    H -->|no| J["Save data and redraw UI"]
-    I --> J
-```
+![The App in One Picture infographic](images/basic/basic-00-app-picture.png)
 
 ## 1. Imports
 
@@ -81,13 +68,7 @@ from lifexp.runtime import get_resource_dir, get_user_data_dir, is_packaged_app
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["main.py"] --> B["Python standard library"]
-    A --> C["Tkinter UI tools"]
-    A --> D["lifexp constants"]
-    A --> E["lifexp runtime helpers"]
-```
+![Imports infographic](images/basic/basic-01-imports.png)
 
 ## 2. Variables
 
@@ -124,12 +105,7 @@ These names are attached to `self`, so they belong to the current LifeXP app obj
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["Right side value"] --> B["="]
-    B --> C["Left side name"]
-    C --> D["Use the name later"]
-```
+![Variables infographic](images/basic/basic-02-variables.png)
 
 ## 3. Constants
 
@@ -155,15 +131,7 @@ XP_POPUP_STEPS = 125
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["constants.py"] --> B["BASE_XP_NEEDED"]
-    A --> C["DEFAULT_FONT_SIZE"]
-    A --> D["XP_POPUP_STEPS"]
-    B --> E["main.py uses shared settings"]
-    C --> E
-    D --> E
-```
+![Constants infographic](images/basic/basic-03-constants.png)
 
 ## 4. Strings, Integers, Booleans, And None
 
@@ -196,14 +164,7 @@ self.tab_selected_bg = None
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["Value"] --> B{"Type"}
-    B --> C["str: text"]
-    B --> D["int: whole number"]
-    B --> E["bool: true/false"]
-    B --> F["None: nothing yet"]
-```
+![Core value types infographic](images/basic/basic-04-types.png)
 
 ## 5. Lists
 
@@ -248,14 +209,7 @@ For `level_events`:
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["self.attributes"] --> B["0: Strength"]
-    A --> C["1: Agility"]
-    A --> D["2: Intelligence"]
-    A --> E["3: Charisma"]
-    A --> F["4: Vitality"]
-```
+![Lists infographic](images/basic/basic-05-lists.png)
 
 ## 6. Dictionaries
 
@@ -300,13 +254,7 @@ normalized.append({
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["Quest dictionary"] --> B["name -> quest title"]
-    A --> C["attribute -> Strength"]
-    A --> D["subcategory -> activity name"]
-    A --> E["xp -> reward number"]
-```
+![Dictionaries infographic](images/basic/basic-06-dictionaries.png)
 
 ## 7. Nested Data
 
@@ -339,16 +287,7 @@ stat["xp"] += amount
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["self.data"] --> B["stats"]
-    B --> C["Strength"]
-    C --> D["level"]
-    C --> E["xp"]
-    A --> F["tasks"]
-    F --> G["task 0"]
-    G --> H["name / attribute / xp"]
-```
+![Nested data infographic](images/basic/basic-07-nested-data.png)
 
 ## 8. Functions And Methods With `def`
 
@@ -384,14 +323,7 @@ Later, when code calls `self.get_xp_needed(level)`, Python does this:
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["Call method"] --> B["Arguments enter parameters"]
-    B --> C["Run indented body"]
-    C --> D{"Need return value?"}
-    D -->|yes| E["return sends answer back"]
-    D -->|no| F["method ends"]
-```
+![Methods with def infographic](images/basic/basic-08-def-methods.png)
 
 ## 9. Classes And `self`
 
@@ -429,14 +361,7 @@ class LifeXPApp:
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["LifeXPApp object"] --> B["self.root"]
-    A --> C["self.attributes"]
-    A --> D["self.data"]
-    A --> E["self.task_tree"]
-    A --> F["methods like complete_task"]
-```
+![Classes and self infographic](images/basic/basic-09-classes-self.png)
 
 ## 10. Indentation
 
@@ -463,11 +388,7 @@ tasks = [self.data["tasks"][index] for index in indices]
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["if line"] --> B["indented lines belong to if"]
-    A --> C["unindented next line is after if"]
-```
+![Indentation infographic](images/basic/basic-10-indentation.png)
 
 ## 11. `if` And Early `return`
 
@@ -496,12 +417,7 @@ This prevents the app from trying to complete a quest when the user selected not
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["Get selected quest indexes"] --> B{"Is the list empty?"}
-    B -->|yes| C["return: stop now"]
-    B -->|no| D["continue completing quests"]
-```
+![If and early return infographic](images/basic/basic-11-if-return.png)
 
 ## 12. `for` Loops
 
@@ -544,15 +460,7 @@ Imagine `tasks` contains three completed quests.
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["tasks list"] --> B["task 1"]
-    B --> C["run loop body"]
-    C --> D{"More tasks?"}
-    D -->|yes| E["next task"]
-    E --> C
-    D -->|no| F["leave loop"]
-```
+![For loops infographic](images/basic/basic-12-for-loops.png)
 
 ## 13. `while` Loops
 
@@ -596,15 +504,7 @@ This is why one large quest can cause multiple level-ups.
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["Current stat XP"] --> B{"XP >= cost?"}
-    B -->|yes| C["spend XP"]
-    C --> D["level += 1"]
-    D --> E["get next cost"]
-    E --> B
-    B -->|no| F["stop leveling"]
-```
+![While loops infographic](images/basic/basic-13-while-loops.png)
 
 ## 14. List Comprehensions
 
@@ -645,12 +545,7 @@ for index in indices:
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["indices"] --> B["read matching task"]
-    B --> C["append to new list"]
-    C --> D["tasks"]
-```
+![List comprehensions infographic](images/basic/basic-14-list-comprehensions.png)
 
 ## 15. `enumerate`
 
@@ -682,15 +577,7 @@ for i, task in enumerate(self.data["tasks"]):
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["tasks list"] --> B["index 0 + task dict"]
-    A --> C["index 1 + task dict"]
-    A --> D["index 2 + task dict"]
-    B --> E["Treeview row iid=0"]
-    C --> F["Treeview row iid=1"]
-    D --> G["Treeview row iid=2"]
-```
+![Enumerate infographic](images/basic/basic-15-enumerate.png)
 
 ## 16. `.append`, `.extend`, `.pop`, And `.get`
 
@@ -737,13 +624,7 @@ task.get("subcategory", "General")
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["list.append(one)"] --> B["list grows by one item"]
-    C["list.extend(many)"] --> D["list grows by many items"]
-    E["list.pop(index)"] --> F["one item is removed"]
-    G["dict.get(key, fallback)"] --> H["value or safe fallback"]
-```
+![Common object methods infographic](images/basic/basic-16-common-methods.png)
 
 ## 17. `try` And `except`
 
@@ -777,13 +658,7 @@ except (TypeError, ValueError):
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["try risky conversion"] --> B{"Did it work?"}
-    B -->|yes| C["use cleaned XP"]
-    B -->|no| D["except block"]
-    D --> E["continue to next task"]
-```
+![Try except infographic](images/basic/basic-17-try-except.png)
 
 ## 18. `with open` And JSON
 
@@ -828,13 +703,7 @@ For saving:
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["lifexp_data.json"] --> B["json.load"]
-    B --> C["Python dict/list data"]
-    C --> D["json.dump"]
-    D --> E["lifexp_data.json"]
-```
+![With open and JSON infographic](images/basic/basic-18-with-json.png)
 
 ## 19. String Formatting With f-Strings
 
@@ -876,11 +745,7 @@ If the task has `25` XP, the final text is:
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["task['xp'] = 25"] --> B["f-string"]
-    B --> C["25 XP"]
-```
+![F-strings infographic](images/basic/basic-19-fstrings.png)
 
 ## 20. Comparison And Boolean Operators
 
@@ -920,12 +785,7 @@ This protects the app from using an invalid row index.
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["index"] --> B{"0 <= index < task count?"}
-    B -->|true| C["index is safe"]
-    B -->|false| D["refresh and return []"]
-```
+![Comparisons and booleans infographic](images/basic/basic-20-comparisons.png)
 
 ## 21. Tkinter Basics
 
@@ -997,15 +857,7 @@ For the button:
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["Window"] --> B["Frame"]
-    B --> C["Label"]
-    B --> D["Treeview table"]
-    B --> E["Button"]
-    E --> F["command callback"]
-    F --> G["Python method runs after click"]
-```
+![Tkinter basics infographic](images/basic/basic-21-tkinter.png)
 
 ## 22. Event Callbacks
 
@@ -1033,16 +885,7 @@ self.task_tree.bind("<Control-Button-1>", self.toggle_task_tree_selection)
 
 ### Infographic
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Tk as Tkinter
-    participant App as LifeXP method
-
-    User->>Tk: Command-clicks a row
-    Tk->>App: toggle_task_tree_selection(event)
-    App->>Tk: update row selection
-```
+![Event callbacks infographic](images/basic/basic-22-callbacks.png)
 
 ## 23. `return`
 
@@ -1069,12 +912,7 @@ def get_total_xp_for_stat(self, stat):
 
 ### Infographic
 
-```mermaid
-flowchart LR
-    A["caller asks question"] --> B["method calculates"]
-    B --> C["return value"]
-    C --> D["caller receives answer"]
-```
+![Return values infographic](images/basic/basic-23-return.png)
 
 ## 24. Reading One Full Flow: Complete Quest
 
@@ -1134,21 +972,7 @@ def complete_task(self):
 
 ### Infographic
 
-```mermaid
-flowchart TD
-    A["Complete button clicked"] --> B["get selected indexes"]
-    B --> C{"Any selected?"}
-    C -->|no| D["return"]
-    C -->|yes| E["build selected tasks list"]
-    E --> F["for each task"]
-    F --> G["gain XP"]
-    G --> H["append history record"]
-    H --> I{"More tasks?"}
-    I -->|yes| F
-    I -->|no| J["remove active tasks"]
-    J --> K["save data"]
-    K --> L["refresh UI"]
-```
+![Complete Quest flow infographic](images/basic/basic-24-complete-flow.png)
 
 ## 25. Beginner Reading Checklist
 
