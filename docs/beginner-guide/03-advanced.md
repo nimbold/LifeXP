@@ -22,12 +22,28 @@ Each lesson follows the same structure as the first two guide parts:
 1. A short lesson.
 2. A real example from LifeXP.
 3. What the computer reads.
-4. A simple infographic.
+4. Sometimes, a generated infographic image.
 5. A practice question.
 
 At this level, one lesson may include several methods. That is the point: advanced reading is about the relationships between methods.
 
+## Diagram And Code Style
+
+The infographics in this chapter are generated PNG images, not GitHub flowchart code. They use a simple learning style:
+
+- white background
+- black lines and borders
+- black text
+- casual hand-drawn lettering
+- no bright system colors
+- small code-style color accents where they make syntax easier to recognize
+
+Python examples still use fenced `python` code blocks so GitHub and most editors can apply syntax highlighting.
+
 ## The Advanced Mental Model
+
+![Hand-drawn infographic for LifeXP advanced mental model](images/advanced-mental-model.png)
+
 
 LifeXP has systems that run at different times.
 
@@ -37,18 +53,6 @@ LifeXP has systems that run at different times.
 - Defensive systems protect the app from old data, invalid UI state, or destroyed widgets.
 - Rendering systems draw on `Canvas` widgets.
 
-```mermaid
-flowchart TD
-    A["User action or startup"] --> B["Immediate method"]
-    B --> C{"Need delayed work?"}
-    C -->|yes| D["root.after schedules callback"]
-    D --> E["callback runs later"]
-    E --> F{"Need repeated frames?"}
-    F -->|yes| G["animate -> root.after -> animate"]
-    F -->|no| H["finish update"]
-    C -->|no| H
-    H --> I["data, UI, disk, or canvas is now updated"]
-```
 
 ## 1. Reading Advanced Methods In Passes
 
@@ -102,22 +106,15 @@ Timing pass:
 2. It uses `root.after` to run animation methods later.
 3. The lambdas preserve the event data for the later call.
 
-### Infographic
-
-```mermaid
-flowchart LR
-    A["Shape"] --> B["What is this responsible for?"]
-    B --> C["State"]
-    C --> D["What does it read/change?"]
-    D --> E["Timing"]
-    E --> F["now, later, repeated, or background?"]
-```
 
 ### Practice
 
 Read `play_floating_text` using the same three passes before trying to understand every animation line.
 
 ## 2. Reward Event Pipeline
+
+![Hand-drawn infographic showing quest completion to rewards](images/quest-complete-rewards.png)
+
 
 ### Short Lesson
 
@@ -152,19 +149,6 @@ if level_events or rank_event:
 
 The data comes first. The visual effects come after.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["complete_task"] --> B["gain_xp"]
-    B --> C["level_events"]
-    A --> D["update_stats_display"]
-    D --> E["rank_event"]
-    C --> F["summarize_level_events"]
-    E --> G["schedule_level_up_sequence"]
-    F --> G
-    G --> H["animations"]
-```
 
 ### Practice
 
@@ -221,15 +205,6 @@ For a rank event:
 3. Store old and new account level details.
 4. Store progress values needed by the avatar and popup.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["gameplay change"] --> B["event dictionary"]
-    B --> C["animation method"]
-    B --> D["summary method"]
-    B --> E["UI update method"]
-```
 
 ### Practice
 
@@ -263,18 +238,6 @@ if level_events:
 
 The lambda default argument matters. `event=rank_event` freezes the current event value for the later callback.
 
-### Infographic
-
-```mermaid
-sequenceDiagram
-    participant App
-    participant Tk as Tkinter Timer
-    participant Anim as Animation Method
-
-    App->>Tk: root.after(delay, callback)
-    App-->>App: continue running
-    Tk->>Anim: callback runs later
-```
 
 ### Practice
 
@@ -325,25 +288,15 @@ def play_level_up_batch(self, events):
 7. Store each popup's box position.
 8. After all popups exist, create one shared particle burst around the whole group.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["level_events list"] --> B["calculate stack positions"]
-    B --> C["popup 1"]
-    B --> D["popup 2"]
-    B --> E["popup 3"]
-    C --> F["popup_boxes"]
-    D --> F
-    E --> F
-    F --> G["one shared particle burst"]
-```
 
 ### Practice
 
 Why does the batch call `play_level_up_animation` with `particle_count=0` and then call `play_level_up_batch_particles` once?
 
 ## 6. Floating Text Popups
+
+![Hand-drawn infographic showing animation and particle safety](images/animation-particle-safety.png)
+
 
 ### Short Lesson
 
@@ -387,18 +340,6 @@ self.raise_popup_window(popup)
 
 The fallback dictionary matters because particle methods still need a source box even when popups are disabled.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["play_floating_text"] --> B{"popups enabled?"}
-    B -->|no| C["return safe box dictionary"]
-    B -->|yes| D["create Toplevel"]
-    D --> E["build label"]
-    E --> F["place popup"]
-    F --> G["animate frames"]
-    G --> H["return popup box"]
-```
 
 ### Practice
 
@@ -440,18 +381,6 @@ This snippet is shortened to show the pattern.
 5. Schedule the next frame with `root.after`.
 6. When the step count is finished, destroy the popup.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["animate step"] --> B{"popup exists?"}
-    B -->|no| C["return"]
-    B -->|yes| D{"step <= total?"}
-    D -->|yes| E["update position, size, alpha"]
-    E --> F["root.after next step"]
-    F --> A
-    D -->|no| G["destroy popup"]
-```
 
 ### Practice
 
@@ -482,14 +411,6 @@ def ease_out_cubic(self, progress):
 
 Animation code can use this returned value to calculate movement or opacity.
 
-### Infographic
-
-```mermaid
-flowchart LR
-    A["raw progress"] --> B["clamp 0..1"]
-    B --> C["ease formula"]
-    C --> D["smoother motion value"]
-```
 
 ### Practice
 
@@ -523,15 +444,6 @@ popup.geometry(f"+{int(root_x + safe_x - popup_w // 2)}+{int(root_y + safe_y - p
 4. Convert app-relative coordinates to screen coordinates.
 5. Move the `Toplevel` window to that screen position.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["desired x/y"] --> B["add stack offset"]
-    B --> C["clamp inside window"]
-    C --> D["convert to screen coordinates"]
-    D --> E["popup.geometry"]
-```
 
 ### Practice
 
@@ -572,17 +484,6 @@ particles.append({
 5. Store size, lifetime, color, and fade timing.
 6. Append this dictionary to the particle list.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["particle dict"] --> B["widget"]
-    A --> C["x / y"]
-    A --> D["dx / dy"]
-    A --> E["life"]
-    A --> F["color"]
-    A --> G["token"]
-```
 
 ### Practice
 
@@ -625,17 +526,6 @@ particle["life"] -= 1
 5. Place the widget at the new position.
 6. Reduce its remaining life.
 
-### Infographic
-
-```mermaid
-flowchart LR
-    A["position"] --> B["add velocity"]
-    B --> C["apply drag"]
-    C --> D["apply gravity"]
-    D --> E["clamp to window"]
-    E --> F["place widget"]
-    F --> G["life -= 1"]
-```
 
 ### Practice
 
@@ -682,22 +572,15 @@ if (
 5. Verify the widget still has the same token.
 6. If not, stop updating that particle.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["request particle widget"] --> B["widget + token"]
-    B --> C["animation stores token"]
-    C --> D{"later token still matches?"}
-    D -->|yes| E["keep updating"]
-    D -->|no| F["stop touching widget"]
-```
 
 ### Practice
 
 Why is a token safer than only checking whether the widget still exists?
 
 ## 13. Trophy Tier Expansion
+
+![Hand-drawn infographic showing XP, levels, and trophies](images/xp-levels-trophies.png)
+
 
 ### Short Lesson
 
@@ -727,16 +610,6 @@ def get_tiers(self):
 4. Otherwise, include the first three tiers.
 5. Return the cached tier list.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["_max_stat_level"] --> B{"greater than 25?"}
-    B -->|no| C["3 visible tiers"]
-    B -->|yes| D["5 visible tiers"]
-    C --> E["cache tiers"]
-    D --> E
-```
 
 ### Practice
 
@@ -773,24 +646,15 @@ def prepare_visible_trophy_room(self):
 3. If the trophy room has not been built, rebuild it.
 4. If it already exists, resize the canvases.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["prepare trophy room"] --> B{"frame exists?"}
-    B -->|no| C["return"]
-    B -->|yes| D{"visible real geometry?"}
-    D -->|no| E["root.after retry"]
-    D -->|yes| F{"built already?"}
-    F -->|no| G["rebuild_trophy_room"]
-    F -->|yes| H["resize_trophy_canvases"]
-```
 
 ### Practice
 
 Why is it risky to calculate trophy canvas sizes before the trophy frame is visible?
 
 ## 15. Canvas Drawing
+
+![Hand-drawn infographic showing drawing, themes, and reports](images/drawing-themes-reports.png)
+
 
 ### Short Lesson
 
@@ -826,16 +690,6 @@ def draw_trophy(self, canvas, attr, progress, color, level_req):
 7. Get material colors for the tier.
 8. Continue drawing shapes with those dimensions and colors.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["canvas"] --> B["delete old drawing"]
-    B --> C["measure width/height"]
-    C --> D["calculate scale"]
-    D --> E["choose material colors"]
-    E --> F["draw trophy shapes"]
-```
 
 ### Practice
 
@@ -881,16 +735,6 @@ if progress < 1.0:
 6. If the trophy is locked, blend darker colors toward brighter colors.
 7. If progress reaches `1.0`, use earned material colors.
 
-### Infographic
-
-```mermaid
-flowchart LR
-    A["level"] --> B["level / requirement"]
-    B --> C["cap at 1.0"]
-    C --> D["progress"]
-    D --> E["locked color blend"]
-    D --> F["earned material"]
-```
 
 ### Practice
 
@@ -932,16 +776,6 @@ background_color_map = {
 5. Build a map from old foreground colors to new foreground colors.
 6. Use the maps to recolor already-created widgets.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["old colors"] --> B["save previous palette"]
-    B --> C["apply new theme"]
-    C --> D["build color maps"]
-    D --> E["recolor existing tk widgets"]
-    E --> F["refresh stats, tasks, reports"]
-```
 
 ### Practice
 
@@ -985,16 +819,6 @@ for child in widget.winfo_children():
 6. Loop through child widgets.
 7. Call `recolor_widget_tree` on each child.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["root widget"] --> B["recolor current widget"]
-    B --> C["child 1"]
-    B --> D["child 2"]
-    C --> E["recolor child's children"]
-    D --> F["recolor child's children"]
-```
 
 ### Practice
 
@@ -1034,17 +858,6 @@ widget.configure(
 5. Calculate the scaled size from the original size.
 6. Configure the widget with the scaled font.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["widget font"] --> B{"base font saved?"}
-    B -->|no| C["inspect and save original"]
-    B -->|yes| D["read original"]
-    C --> D
-    D --> E["scale from original"]
-    E --> F["configure widget font"]
-```
 
 ### Practice
 
@@ -1089,16 +902,6 @@ scrollbar.bind("<B1-Motion>", jump)
 5. Redraw the scrollbar when its size changes.
 6. Jump the target scroll position when the user clicks or drags.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["target widget scrolls"] --> B["set_view(first,last)"]
-    B --> C["state dictionary"]
-    C --> D["draw scrollbar thumb"]
-    E["user clicks scrollbar"] --> F["jump(event)"]
-    F --> G["target.yview_moveto"]
-```
 
 ### Practice
 
@@ -1137,17 +940,6 @@ def route_global_scroll(self, event):
 4. If the Settings tab is selected, scroll the settings canvas.
 5. Otherwise, route the event to the summary body scroll handler.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["wheel event"] --> B{"notebook exists?"}
-    B -->|yes| C["get selected tab"]
-    B -->|no| D["summary scroll"]
-    C --> E{"settings tab?"}
-    E -->|yes| F["scroll settings canvas"]
-    E -->|no| D
-```
 
 ### Practice
 
@@ -1193,23 +985,15 @@ This snippet is shortened to focus on the rendering math.
 7. Convert each XP total into a bar height.
 8. Draw a rectangle for each attribute.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["XP totals by attribute"] --> B["find max XP"]
-    B --> C["calculate slot width"]
-    C --> D["loop attributes"]
-    D --> E["XP / max XP"]
-    E --> F["bar height"]
-    F --> G["draw rectangle"]
-```
 
 ### Practice
 
 Why does the code use `max([1] + values)` instead of just `max(values)`?
 
 ## 23. Save Migration
+
+![Hand-drawn infographic showing safe loading and saving](images/save-file-safety.png)
+
 
 ### Short Lesson
 
@@ -1243,22 +1027,6 @@ def migrate_renamed_attributes(self, data):
 4. If a task uses an old attribute name, replace it.
 5. Similar logic also updates history, subcategories, and trophies.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["old save data"] --> B["rename map"]
-    B --> C["update stats"]
-    B --> D["update tasks"]
-    B --> E["update history"]
-    B --> F["update subcategories"]
-    B --> G["update trophies"]
-    C --> H["current data contract"]
-    D --> H
-    E --> H
-    F --> H
-    G --> H
-```
 
 ### Practice
 
@@ -1308,16 +1076,6 @@ def add_saved_subcategory(self, attr, name):
 7. Clear the cached subcategory lookups.
 8. Return `True`.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["new activity"] --> B{"valid and unique?"}
-    B -->|no| C["return False"]
-    B -->|yes| D["append to subcategories"]
-    D --> E["invalidate cache"]
-    E --> F["return True"]
-```
 
 ### Practice
 
@@ -1369,21 +1127,6 @@ def check_for_update(self):
 6. Use `root.after(0, ...)` to call `finish_update_check` on the Tkinter thread.
 7. Start the worker in a daemon thread.
 
-### Infographic
-
-```mermaid
-sequenceDiagram
-    participant UI as Tkinter UI
-    participant Worker as Worker Thread
-    participant GitHub
-    participant Tk as Tk Main Thread
-
-    UI->>Worker: start thread
-    Worker->>GitHub: request release JSON
-    GitHub-->>Worker: response or error
-    Worker->>Tk: root.after(0, finish_update_check)
-    Tk->>UI: update button and show message
-```
 
 ### Practice
 
@@ -1417,18 +1160,6 @@ if button is not None and button.winfo_exists():
 
 This pattern protects scheduled and background callbacks from stale widget references.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["want to update widget"] --> B["getattr fallback None"]
-    B --> C{"widget exists?"}
-    C -->|no| D["skip"]
-    C -->|yes| E["try configure"]
-    E --> F{"TclError?"}
-    F -->|yes| D
-    F -->|no| G["updated"]
-```
 
 ### Practice
 
@@ -1486,22 +1217,6 @@ if level_events or rank_event:
 8. Spawn XP particles from the popup box.
 9. Schedule delayed level-up, rank-up, and trophy animations.
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["Complete Quest"] --> B["gain_xp"]
-    B --> C["level events"]
-    B --> D["trophy names"]
-    A --> E["save and refresh"]
-    E --> F["update_stats_display"]
-    F --> G["rank event"]
-    A --> H["XP popup now"]
-    H --> I["XP particles"]
-    C --> J["scheduled rewards"]
-    G --> J
-    D --> J
-```
 
 ### Practice
 
@@ -1528,21 +1243,6 @@ Use this order:
 7. Is this callback accidentally running now instead of later?
 8. Is UI code running on the Tkinter main thread?
 
-### Infographic
-
-```mermaid
-flowchart TD
-    A["advanced bug"] --> B{"timing issue?"}
-    A --> C{"stale widget?"}
-    A --> D{"bad geometry?"}
-    A --> E{"stale cache?"}
-    A --> F{"bad data shape?"}
-    B --> G["check root.after/thread"]
-    C --> H["check winfo_exists"]
-    D --> I["check visible size"]
-    E --> J["check invalidation"]
-    F --> K["check normalizers"]
-```
 
 ### Practice
 
@@ -1558,21 +1258,6 @@ Do not start with every helper. Follow the highest-value systems first.
 
 ### Recommended Reading Path
 
-```mermaid
-flowchart TD
-    A["complete_task"] --> B["gain_xp"]
-    B --> C["check_trophies"]
-    A --> D["update_stats_display"]
-    D --> E["update_header"]
-    A --> F["play_floating_text"]
-    A --> G["schedule_level_up_sequence"]
-    G --> H["play_level_up_batch"]
-    H --> I["play_firework_particles"]
-    C --> J["redraw_trophies"]
-    J --> K["draw_trophy"]
-    L["set_theme"] --> M["recolor_widget_tree"]
-    N["check_for_update"] --> O["finish_update_check"]
-```
 
 ### What The Computer Reads
 
