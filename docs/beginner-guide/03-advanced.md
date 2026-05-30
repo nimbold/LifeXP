@@ -29,20 +29,20 @@ At this level, one lesson may include several methods. That is the point: advanc
 
 ## Diagram And Code Style
 
-The infographics in this chapter are generated PNG images, not GitHub flowchart code. They use a simple learning style:
+The infographics in this chapter are generated code-card JPG images, not GitHub flowchart code. They use a simple learning style:
 
 - white background
 - black lines and borders
 - black text
-- casual hand-drawn lettering
+- casual title lettering with readable monospace code
 - no bright system colors
-- small code-style color accents where they make syntax easier to recognize
+- restrained code-style color accents for methods, data names, control words, and comments
 
 Python examples still use fenced `python` code blocks so GitHub and most editors can apply syntax highlighting.
 
 ## The Advanced Mental Model
 
-![Hand-drawn infographic for LifeXP advanced mental model](images/advanced-mental-model.png)
+![Code-card infographic for The Advanced Mental Model](images/advanced/advanced-00-mental-model.jpg)
 
 
 LifeXP has systems that run at different times.
@@ -55,6 +55,8 @@ LifeXP has systems that run at different times.
 
 
 ## 1. Reading Advanced Methods In Passes
+
+![Code-card infographic for 1. Reading Advanced Methods In Passes](images/advanced/advanced-01-reading-passes.jpg)
 
 ### Short Lesson
 
@@ -113,7 +115,7 @@ Read `play_floating_text` using the same three passes before trying to understan
 
 ## 2. Reward Event Pipeline
 
-![Hand-drawn infographic showing quest completion to rewards](images/quest-complete-rewards.png)
+![Code-card infographic for 2. Reward Event Pipeline](images/advanced/advanced-02-reward-pipeline.jpg)
 
 
 ### Short Lesson
@@ -155,6 +157,8 @@ The data comes first. The visual effects come after.
 Why is it useful that `gain_xp` returns event dictionaries instead of directly playing every animation itself?
 
 ## 3. Event Dictionaries
+
+![Code-card infographic for 3. Event Dictionaries](images/advanced/advanced-03-event-dictionaries.jpg)
 
 ### Short Lesson
 
@@ -212,6 +216,8 @@ Find one place where `rank_event` is created and one place where it is consumed.
 
 ## 4. Scheduling With `root.after`
 
+![Code-card infographic for 4. Scheduling With root.after](images/advanced/advanced-04-root-after.jpg)
+
 ### Short Lesson
 
 `root.after(delay_ms, callback)` tells Tkinter to call a function later.
@@ -244,6 +250,8 @@ The lambda default argument matters. `event=rank_event` freezes the current even
 Why should an animation sequence use `root.after` instead of `time.sleep`?
 
 ## 5. Batching Level-Up Popups
+
+![Code-card infographic for 5. Batching Level-Up Popups](images/advanced/advanced-05-batch-popups.jpg)
 
 ### Short Lesson
 
@@ -295,7 +303,7 @@ Why does the batch call `play_level_up_animation` with `particle_count=0` and th
 
 ## 6. Floating Text Popups
 
-![Hand-drawn infographic showing animation and particle safety](images/animation-particle-safety.png)
+![Code-card infographic for 6. Floating Text Popups](images/advanced/advanced-06-floating-text.jpg)
 
 
 ### Short Lesson
@@ -347,6 +355,8 @@ Why does `play_floating_text` return a box dictionary instead of returning nothi
 
 ## 7. Animation Frame Loops
 
+![Code-card infographic for 7. Animation Frame Loops](images/advanced/advanced-07-animation-loop.jpg)
+
 ### Short Lesson
 
 Tkinter animations work by changing a widget a little, scheduling the next frame, and stopping when finished.
@@ -388,6 +398,8 @@ Why does the animation check `popup.winfo_exists()` before updating the popup?
 
 ## 8. Easing
 
+![Code-card infographic for 8. Easing](images/advanced/advanced-08-easing.jpg)
+
 ### Short Lesson
 
 Easing changes motion so it feels less mechanical.
@@ -417,6 +429,8 @@ Animation code can use this returned value to calculate movement or opacity.
 Why is easing useful for reward popups?
 
 ## 9. Geometry And Clamping
+
+![Code-card infographic for 9. Geometry And Clamping](images/advanced/advanced-09-geometry-clamp.jpg)
 
 ### Short Lesson
 
@@ -450,6 +464,8 @@ popup.geometry(f"+{int(root_x + safe_x - popup_w // 2)}+{int(root_y + safe_y - p
 Why does the code need both the root window position and the popup size before calling `popup.geometry(...)`?
 
 ## 10. Particle Systems
+
+![Code-card infographic for 10. Particle Systems](images/advanced/advanced-10-particles.jpg)
 
 ### Short Lesson
 
@@ -490,6 +506,8 @@ particles.append({
 Why are `x` and `y` stored as floats even though widget placement uses integer pixels?
 
 ## 11. Particle Physics
+
+![Code-card infographic for 11. Particle Physics](images/advanced/advanced-11-particle-physics.jpg)
 
 ### Short Lesson
 
@@ -532,6 +550,8 @@ particle["life"] -= 1
 What visual difference would you expect between `physics=True` and `physics=False`?
 
 ## 12. Particle Widget Pooling
+
+![Code-card infographic for 12. Particle Widget Pooling](images/advanced/advanced-12-widget-pool.jpg)
 
 ### Short Lesson
 
@@ -579,7 +599,7 @@ Why is a token safer than only checking whether the widget still exists?
 
 ## 13. Trophy Tier Expansion
 
-![Hand-drawn infographic showing XP, levels, and trophies](images/xp-levels-trophies.png)
+![Code-card infographic for 13. Trophy Tier Expansion](images/advanced/advanced-13-trophy-tiers.jpg)
 
 
 ### Short Lesson
@@ -617,6 +637,8 @@ Why does the method cache the tier list instead of building a new list every tim
 
 ## 14. Lazy Trophy Rendering
 
+![Code-card infographic for 14. Lazy Trophy Rendering](images/advanced/advanced-14-lazy-trophies.jpg)
+
 ### Short Lesson
 
 Some widgets do not have useful sizes until they are visible.
@@ -653,7 +675,7 @@ Why is it risky to calculate trophy canvas sizes before the trophy frame is visi
 
 ## 15. Canvas Drawing
 
-![Hand-drawn infographic showing drawing, themes, and reports](images/drawing-themes-reports.png)
+![Code-card infographic for 15. Canvas Drawing](images/advanced/advanced-15-canvas-drawing.jpg)
 
 
 ### Short Lesson
@@ -696,6 +718,8 @@ def draw_trophy(self, canvas, attr, progress, color, level_req):
 Why does `draw_trophy` delete `"all"` before drawing the trophy again?
 
 ## 16. Progress-Based Rendering
+
+![Code-card infographic for 16. Progress-Based Rendering](images/advanced/advanced-16-progress-rendering.jpg)
 
 ### Short Lesson
 
@@ -742,6 +766,8 @@ If an attribute is level 5 and a trophy requires level 10, what progress value i
 
 ## 17. Theme Recoloring Without Rebuilding
 
+![Code-card infographic for 17. Theme Recoloring Without Rebuilding](images/advanced/advanced-17-theme-recolor.jpg)
+
 ### Short Lesson
 
 Changing a theme is harder than changing one variable.
@@ -782,6 +808,8 @@ background_color_map = {
 Why does `set_theme` need old colors before calling `apply_modern_theme()`?
 
 ## 18. Recursive Widget Walking
+
+![Code-card infographic for 18. Recursive Widget Walking](images/advanced/advanced-18-widget-walking.jpg)
 
 ### Short Lesson
 
@@ -826,6 +854,8 @@ Why does `recolor_widget_tree` catch `tk.TclError` instead of assuming every wid
 
 ## 19. Recursive Font Rescaling
 
+![Code-card infographic for 19. Recursive Font Rescaling](images/advanced/advanced-19-font-rescale.jpg)
+
 ### Short Lesson
 
 Display preferences can change after widgets already exist.
@@ -864,6 +894,8 @@ widget.configure(
 Why is it important to scale from the original font instead of scaling the current font again and again?
 
 ## 20. Custom Scrollbar State
+
+![Code-card infographic for 20. Custom Scrollbar State](images/advanced/advanced-20-scrollbar-state.jpg)
 
 ### Short Lesson
 
@@ -909,6 +941,8 @@ Why does `state` use a dictionary instead of two plain local variables?
 
 ## 21. Scroll Routing
 
+![Code-card infographic for 21. Scroll Routing](images/advanced/advanced-21-scroll-routing.jpg)
+
 ### Short Lesson
 
 An app can have several scrollable areas. A global wheel event needs to go to the right one.
@@ -946,6 +980,8 @@ def route_global_scroll(self, event):
 Why does this method use `getattr(self, "tab_settings", None)` instead of directly reading `self.tab_settings`?
 
 ## 22. Report Graph Rendering
+
+![Code-card infographic for 22. Report Graph Rendering](images/advanced/advanced-22-report-graph.jpg)
 
 ### Short Lesson
 
@@ -992,7 +1028,7 @@ Why does the code use `max([1] + values)` instead of just `max(values)`?
 
 ## 23. Save Migration
 
-![Hand-drawn infographic showing safe loading and saving](images/save-file-safety.png)
+![Code-card infographic for 23. Save Migration](images/advanced/advanced-23-save-migration.jpg)
 
 
 ### Short Lesson
@@ -1033,6 +1069,8 @@ def migrate_renamed_attributes(self, data):
 Why does migration run before normalizing stats, tasks, and history?
 
 ## 24. Cache Invalidation
+
+![Code-card infographic for 24. Cache Invalidation](images/advanced/advanced-24-cache-invalidation.jpg)
 
 ### Short Lesson
 
@@ -1082,6 +1120,8 @@ def add_saved_subcategory(self, attr, name):
 What stale behavior might happen if the app added a subcategory but did not invalidate the subcategory cache?
 
 ## 25. Background Update Checks
+
+![Code-card infographic for 25. Background Update Checks](images/advanced/advanced-25-update-check.jpg)
 
 ### Short Lesson
 
@@ -1134,6 +1174,8 @@ Why should the worker not directly call `messagebox.showinfo(...)` after the net
 
 ## 26. Defensive Widget Access
 
+![Code-card infographic for 26. Defensive Widget Access](images/advanced/advanced-26-defensive-widgets.jpg)
+
 ### Short Lesson
 
 Advanced Tkinter code must assume widgets might not exist anymore.
@@ -1166,6 +1208,8 @@ This pattern protects scheduled and background callbacks from stale widget refer
 Why can a widget reference exist in Python even after the Tkinter widget has been destroyed?
 
 ## 27. Reading A Full Advanced Flow: Complete Quest To Rewards
+
+![Code-card infographic for 27. Reading A Full Advanced Flow: Complete Quest To Rewards](images/advanced/advanced-27-full-flow.jpg)
 
 ### Short Lesson
 
@@ -1224,6 +1268,8 @@ Write a one-line summary of this flow in your own words.
 
 ## 28. Advanced Debugging
 
+![Code-card infographic for 28. Advanced Debugging](images/advanced/advanced-28-debugging.jpg)
+
 ### Short Lesson
 
 Advanced bugs usually come from timing, stale state, geometry, or cache assumptions.
@@ -1249,6 +1295,8 @@ Use this order:
 If a scheduled animation crashes after a popup was destroyed, which defensive check would you look for first?
 
 ## 29. What To Read First In `main.py`
+
+![Code-card infographic for 29. What To Read First In main.py](images/advanced/advanced-29-read-order.jpg)
 
 ### Short Lesson
 
@@ -1277,6 +1325,8 @@ This path teaches:
 Pick one path from the diagram and read only one direct helper at a time.
 
 ## 30. What You Should Understand After Advanced
+
+![Code-card infographic for 30. What You Should Understand After Advanced](images/advanced/advanced-30-understand.jpg)
 
 You have finished the advanced guide when you can explain these ideas without memorizing exact lines:
 
