@@ -40,23 +40,19 @@ The infographics in this chapter are generated code-card JPG images, not GitHub 
 
 Python examples still use fenced `python` code blocks so GitHub and most editors can apply syntax highlighting.
 
-## The Advanced Mental Model
-
-![Code-card infographic for The Advanced Mental Model](images/advanced/advanced-00-mental-model.jpg)
+<img src="images/advanced/advanced-00-mental-model.jpg" alt="The Advanced Mental Model" width="600">
 
 
-LifeXP has systems that run at different times.
+LifeXP has systems that run at different times, organized into clean **Mixin files** under the `lifexp/` package:
 
-- Immediate systems run during startup or direct button clicks.
-- Scheduled systems run later through `root.after`.
-- Repeated systems run frame by frame.
-- Defensive systems protect the app from old data, invalid UI state, or destroyed widgets.
-- Rendering systems draw on `Canvas` widgets.
+- Immediate systems run during startup (coordinated in [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py)) or direct button clicks (managed in [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py)).
+- Scheduled and repeated systems (visual frame-by-frame loops) run later through `root.after` (managed in [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py)).
+- Defensive and loading systems protect the app from old data or missing keys (managed in [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py) and [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py)).
+- Gameplay systems handle RPG levels and math rules (managed in [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py)).
+- Rendering systems draw custom shapes and graphs on `Canvas` widgets (managed in [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py)).
 
 
-## 1. Reading Advanced Methods In Passes
-
-![Code-card infographic for 1. Reading Advanced Methods In Passes](images/advanced/advanced-01-reading-passes.jpg)
+<img src="images/advanced/advanced-01-reading-passes.jpg" alt="1. Reading Advanced Methods In Passes" width="600">
 
 ### Short Lesson
 
@@ -69,6 +65,8 @@ Use three passes:
 3. Timing: Does it run immediately, later, repeatedly, or in a background thread?
 
 ### Example From The Code
+
+In [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 def schedule_level_up_sequence(self, level_events, rank_event=None):
@@ -113,9 +111,7 @@ Timing pass:
 
 Read `play_floating_text` using the same three passes before trying to understand every animation line.
 
-## 2. Reward Event Pipeline
-
-![Code-card infographic for 2. Reward Event Pipeline](images/advanced/advanced-02-reward-pipeline.jpg)
+<img src="images/advanced/advanced-02-reward-pipeline.jpg" alt="2. Reward Event Pipeline" width="600">
 
 
 ### Short Lesson
@@ -130,6 +126,8 @@ The important idea is separation:
 - Animation methods display event data.
 
 ### Example From The Code
+
+In `complete_task()` inside [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
 
 ```python
 level_events.extend(self.gain_xp(attr, xp_gain))
@@ -156,9 +154,7 @@ The data comes first. The visual effects come after.
 
 Why is it useful that `gain_xp` returns event dictionaries instead of directly playing every animation itself?
 
-## 3. Event Dictionaries
-
-![Code-card infographic for 3. Event Dictionaries](images/advanced/advanced-03-event-dictionaries.jpg)
+<img src="images/advanced/advanced-03-event-dictionaries.jpg" alt="3. Event Dictionaries" width="600">
 
 ### Short Lesson
 
@@ -167,6 +163,8 @@ An event dictionary is a small package of information about something that happe
 LifeXP uses dictionaries for level-up and rank-up events because they are easy to pass between methods.
 
 ### Example From The Code
+
+In `gain_xp()` and `update_stats_display()` inside [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py) and [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 level_events.append({
@@ -214,9 +212,7 @@ For a rank event:
 
 Find one place where `rank_event` is created and one place where it is consumed.
 
-## 4. Scheduling With `root.after`
-
-![Code-card infographic for 4. Scheduling With root.after](images/advanced/advanced-04-root-after.jpg)
+<img src="images/advanced/advanced-04-root-after.jpg" alt="4. Scheduling With root.after" width="600">
 
 ### Short Lesson
 
@@ -225,6 +221,8 @@ Find one place where `rank_event` is created and one place where it is consumed.
 This is central to advanced Tkinter code. It lets the app delay work without freezing the interface.
 
 ### Example From The Code
+
+In `schedule_level_up_sequence()` inside [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 if rank_event:
@@ -249,9 +247,7 @@ The lambda default argument matters. `event=rank_event` freezes the current even
 
 Why should an animation sequence use `root.after` instead of `time.sleep`?
 
-## 5. Batching Level-Up Popups
-
-![Code-card infographic for 5. Batching Level-Up Popups](images/advanced/advanced-05-batch-popups.jpg)
+<img src="images/advanced/advanced-05-batch-popups.jpg" alt="5. Batching Level-Up Popups" width="600">
 
 ### Short Lesson
 
@@ -260,6 +256,8 @@ If the user completes several quests at once, many attributes might level up.
 Showing one popup and particle burst per level can become noisy. LifeXP batches level-up popups into one coordinated group.
 
 ### Example From The Code
+
+In [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 def play_level_up_batch(self, events):
@@ -301,9 +299,7 @@ def play_level_up_batch(self, events):
 
 Why does the batch call `play_level_up_animation` with `particle_count=0` and then call `play_level_up_batch_particles` once?
 
-## 6. Floating Text Popups
-
-![Code-card infographic for 6. Floating Text Popups](images/advanced/advanced-06-floating-text.jpg)
+<img src="images/advanced/advanced-06-floating-text.jpg" alt="6. Floating Text Popups" width="600">
 
 
 ### Short Lesson
@@ -317,8 +313,11 @@ Why does the batch call `play_level_up_animation` with `particle_count=0` and th
 - animation phases
 - safe fallback data
 - scheduled frames
+- safe fallback data
 
 ### Example From The Code
+
+In [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 if not self.animations_enabled or not self.popups_enabled:
@@ -353,9 +352,7 @@ The fallback dictionary matters because particle methods still need a source box
 
 Why does `play_floating_text` return a box dictionary instead of returning nothing?
 
-## 7. Animation Frame Loops
-
-![Code-card infographic for 7. Animation Frame Loops](images/advanced/advanced-07-animation-loop.jpg)
+<img src="images/advanced/advanced-07-animation-loop.jpg" alt="7. Animation Frame Loops" width="600">
 
 ### Short Lesson
 
@@ -364,6 +361,8 @@ Tkinter animations work by changing a widget a little, scheduling the next frame
 This is a controlled loop over time.
 
 ### Example From The Code
+
+In `play_floating_text()` inside [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 def animate(step=0, current_size=display_size, w=popup_w, h=popup_h):
@@ -396,9 +395,7 @@ This snippet is shortened to show the pattern.
 
 Why does the animation check `popup.winfo_exists()` before updating the popup?
 
-## 8. Easing
-
-![Code-card infographic for 8. Easing](images/advanced/advanced-08-easing.jpg)
+<img src="images/advanced/advanced-08-easing.jpg" alt="8. Easing" width="600">
 
 ### Short Lesson
 
@@ -407,6 +404,8 @@ Easing changes motion so it feels less mechanical.
 A linear animation moves the same amount each frame. An eased animation can start fast and slow down, or start gently and speed up.
 
 ### Example From The Code
+
+In [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 def ease_out_cubic(self, progress):
@@ -428,9 +427,7 @@ Animation code can use this returned value to calculate movement or opacity.
 
 Why is easing useful for reward popups?
 
-## 9. Geometry And Clamping
-
-![Code-card infographic for 9. Geometry And Clamping](images/advanced/advanced-09-geometry-clamp.jpg)
+<img src="images/advanced/advanced-09-geometry-clamp.jpg" alt="9. Geometry And Clamping" width="600">
 
 ### Short Lesson
 
@@ -439,6 +436,8 @@ Advanced UI code must keep temporary widgets inside the visible app area.
 LifeXP uses clamping helpers so popups do not appear offscreen.
 
 ### Example From The Code
+
+In `play_floating_text()` inside [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 safe_x, safe_y = self.clamp_box_position(
@@ -463,9 +462,7 @@ popup.geometry(f"+{int(root_x + safe_x - popup_w // 2)}+{int(root_y + safe_y - p
 
 Why does the code need both the root window position and the popup size before calling `popup.geometry(...)`?
 
-## 10. Particle Systems
-
-![Code-card infographic for 10. Particle Systems](images/advanced/advanced-10-particles.jpg)
+<img src="images/advanced/advanced-10-particles.jpg" alt="10. Particle Systems" width="600">
 
 ### Short Lesson
 
@@ -474,6 +471,8 @@ A particle system is a group of small objects that each have position, speed, co
 LifeXP particles are tiny Tkinter `Frame` widgets. The app updates their positions over many frames.
 
 ### Example From The Code
+
+In `play_particles()` inside [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 particles.append({
@@ -505,9 +504,7 @@ particles.append({
 
 Why are `x` and `y` stored as floats even though widget placement uses integer pixels?
 
-## 11. Particle Physics
-
-![Code-card infographic for 11. Particle Physics](images/advanced/advanced-11-particle-physics.jpg)
+<img src="images/advanced/advanced-11-particle-physics.jpg" alt="11. Particle Physics" width="600">
 
 ### Short Lesson
 
@@ -522,6 +519,8 @@ Each frame:
 - destroy expired particles
 
 ### Example From The Code
+
+In `update_active_particles()` inside [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 particle["x"] += particle["dx"]
@@ -549,9 +548,7 @@ particle["life"] -= 1
 
 What visual difference would you expect between `physics=True` and `physics=False`?
 
-## 12. Particle Widget Pooling
-
-![Code-card infographic for 12. Particle Widget Pooling](images/advanced/advanced-12-widget-pool.jpg)
+<img src="images/advanced/advanced-12-widget-pool.jpg" alt="12. Particle Widget Pooling" width="600">
 
 ### Short Lesson
 
@@ -560,6 +557,8 @@ Creating and destroying many widgets can be expensive.
 LifeXP keeps a pool of particle widgets so it can reuse them. It also uses tokens to avoid accidentally reusing a widget while an old animation still thinks it owns it.
 
 ### Example From The Code
+
+In [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py):
 
 ```python
 particle, token = self.acquire_particle_widget(p_color, size)
@@ -597,9 +596,7 @@ if (
 
 Why is a token safer than only checking whether the widget still exists?
 
-## 13. Trophy Tier Expansion
-
-![Code-card infographic for 13. Trophy Tier Expansion](images/advanced/advanced-13-trophy-tiers.jpg)
+<img src="images/advanced/advanced-13-trophy-tiers.jpg" alt="13. Trophy Tier Expansion" width="600">
 
 
 ### Short Lesson
@@ -609,6 +606,8 @@ The trophy room changes as the player grows.
 Before high levels, the app shows fewer trophy tiers. After max stat level passes 25, it reveals long-term tiers.
 
 ### Example From The Code
+
+In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
 
 ```python
 def get_tiers(self):
@@ -635,9 +634,7 @@ def get_tiers(self):
 
 Why does the method cache the tier list instead of building a new list every time?
 
-## 14. Lazy Trophy Rendering
-
-![Code-card infographic for 14. Lazy Trophy Rendering](images/advanced/advanced-14-lazy-trophies.jpg)
+<img src="images/advanced/advanced-14-lazy-trophies.jpg" alt="14. Lazy Trophy Rendering" width="600">
 
 ### Short Lesson
 
@@ -646,6 +643,8 @@ Some widgets do not have useful sizes until they are visible.
 The trophy room waits until the Character tab has real geometry before building trophy canvases.
 
 ### Example From The Code
+
+In [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 def prepare_visible_trophy_room(self):
@@ -673,9 +672,7 @@ def prepare_visible_trophy_room(self):
 
 Why is it risky to calculate trophy canvas sizes before the trophy frame is visible?
 
-## 15. Canvas Drawing
-
-![Code-card infographic for 15. Canvas Drawing](images/advanced/advanced-15-canvas-drawing.jpg)
+<img src="images/advanced/advanced-15-canvas-drawing.jpg" alt="15. Canvas Drawing" width="600">
 
 
 ### Short Lesson
@@ -685,6 +682,8 @@ Tkinter `Canvas` drawing is immediate drawing commands.
 The app clears the canvas, calculates dimensions, chooses colors, and draws shapes.
 
 ### Example From The Code
+
+In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
 
 ```python
 def draw_trophy(self, canvas, attr, progress, color, level_req):
@@ -717,9 +716,7 @@ def draw_trophy(self, canvas, attr, progress, color, level_req):
 
 Why does `draw_trophy` delete `"all"` before drawing the trophy again?
 
-## 16. Progress-Based Rendering
-
-![Code-card infographic for 16. Progress-Based Rendering](images/advanced/advanced-16-progress-rendering.jpg)
+<img src="images/advanced/advanced-16-progress-rendering.jpg" alt="16. Progress-Based Rendering" width="600">
 
 ### Short Lesson
 
@@ -728,6 +725,8 @@ Advanced rendering often uses a progress number between `0.0` and `1.0`.
 LifeXP uses progress to show locked trophies as gradually brighter before they are earned.
 
 ### Example From The Code
+
+In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
 
 ```python
 lvl = self.data["stats"][attr]["level"]
@@ -764,9 +763,7 @@ if progress < 1.0:
 
 If an attribute is level 5 and a trophy requires level 10, what progress value is passed to `draw_trophy`?
 
-## 17. Theme Recoloring Without Rebuilding
-
-![Code-card infographic for 17. Theme Recoloring Without Rebuilding](images/advanced/advanced-17-theme-recolor.jpg)
+<img src="images/advanced/advanced-17-theme-recolor.jpg" alt="17. Theme Recoloring Without Rebuilding" width="600">
 
 ### Short Lesson
 
@@ -775,6 +772,8 @@ Changing a theme is harder than changing one variable.
 Some widgets follow `ttk.Style`. Other widgets are normal Tk widgets with literal colors already configured. LifeXP updates both.
 
 ### Example From The Code
+
+In `set_theme()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 previous_bg_dark = self.bg_dark
@@ -807,9 +806,7 @@ background_color_map = {
 
 Why does `set_theme` need old colors before calling `apply_modern_theme()`?
 
-## 18. Recursive Widget Walking
-
-![Code-card infographic for 18. Recursive Widget Walking](images/advanced/advanced-18-widget-walking.jpg)
+<img src="images/advanced/advanced-18-widget-walking.jpg" alt="18. Recursive Widget Walking" width="600">
 
 ### Short Lesson
 
@@ -818,6 +815,8 @@ A recursive function calls itself.
 `recolor_widget_tree` starts at one widget, updates it, then calls itself for every child widget.
 
 ### Example From The Code
+
+In [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 for option in bg_options | fg_options:
@@ -852,9 +851,7 @@ for child in widget.winfo_children():
 
 Why does `recolor_widget_tree` catch `tk.TclError` instead of assuming every widget supports every color option?
 
-## 19. Recursive Font Rescaling
-
-![Code-card infographic for 19. Recursive Font Rescaling](images/advanced/advanced-19-font-rescale.jpg)
+<img src="images/advanced/advanced-19-font-rescale.jpg" alt="19. Recursive Font Rescaling" width="600">
 
 ### Short Lesson
 
@@ -863,6 +860,8 @@ Display preferences can change after widgets already exist.
 `rescale_widget_tree` walks through widgets, remembers each widget's original font, and scales from that original font every time.
 
 ### Example From The Code
+
+In [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 if not hasattr(widget, "_lifexp_base_font"):
@@ -893,9 +892,7 @@ widget.configure(
 
 Why is it important to scale from the original font instead of scaling the current font again and again?
 
-## 20. Custom Scrollbar State
-
-![Code-card infographic for 20. Custom Scrollbar State](images/advanced/advanced-20-scrollbar-state.jpg)
+<img src="images/advanced/advanced-20-scrollbar-state.jpg" alt="20. Custom Scrollbar State" width="600">
 
 ### Short Lesson
 
@@ -909,6 +906,8 @@ It owns:
 - helper functions to draw and jump
 
 ### Example From The Code
+
+In `create_modern_scrollbar()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 state = {"first": 0.0, "last": 1.0}
@@ -939,9 +938,7 @@ scrollbar.bind("<B1-Motion>", jump)
 
 Why does `state` use a dictionary instead of two plain local variables?
 
-## 21. Scroll Routing
-
-![Code-card infographic for 21. Scroll Routing](images/advanced/advanced-21-scroll-routing.jpg)
+<img src="images/advanced/advanced-21-scroll-routing.jpg" alt="21. Scroll Routing" width="600">
 
 ### Short Lesson
 
@@ -950,6 +947,8 @@ An app can have several scrollable areas. A global wheel event needs to go to th
 LifeXP checks the selected tab and routes scrolling to Settings or Chronicles.
 
 ### Example From The Code
+
+In [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 def route_global_scroll(self, event):
@@ -979,9 +978,7 @@ def route_global_scroll(self, event):
 
 Why does this method use `getattr(self, "tab_settings", None)` instead of directly reading `self.tab_settings`?
 
-## 22. Report Graph Rendering
-
-![Code-card infographic for 22. Report Graph Rendering](images/advanced/advanced-22-report-graph.jpg)
+<img src="images/advanced/advanced-22-report-graph.jpg" alt="22. Report Graph Rendering" width="600">
 
 ### Short Lesson
 
@@ -990,6 +987,8 @@ Why does this method use `getattr(self, "tab_settings", None)` instead of direct
 This is advanced because it combines data scaling, canvas dimensions, grid lines, and labels.
 
 ### Example From The Code
+
+In [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 canvas.delete("all")
@@ -1026,9 +1025,7 @@ This snippet is shortened to focus on the rendering math.
 
 Why does the code use `max([1] + values)` instead of just `max(values)`?
 
-## 23. Save Migration
-
-![Code-card infographic for 23. Save Migration](images/advanced/advanced-23-save-migration.jpg)
+<img src="images/advanced/advanced-23-save-migration.jpg" alt="23. Save Migration" width="600">
 
 
 ### Short Lesson
@@ -1038,6 +1035,8 @@ Apps change over time. Old save files may use old names.
 Migration code updates old save data in place so the rest of the app can use the current data contract.
 
 ### Example From The Code
+
+In [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py):
 
 ```python
 def migrate_renamed_attributes(self, data):
@@ -1068,9 +1067,7 @@ def migrate_renamed_attributes(self, data):
 
 Why does migration run before normalizing stats, tasks, and history?
 
-## 24. Cache Invalidation
-
-![Code-card infographic for 24. Cache Invalidation](images/advanced/advanced-24-cache-invalidation.jpg)
+<img src="images/advanced/advanced-24-cache-invalidation.jpg" alt="24. Cache Invalidation" width="600">
 
 ### Short Lesson
 
@@ -1079,6 +1076,8 @@ A cache is only correct while the data it depends on has not changed.
 When source data changes, the cache must be cleared.
 
 ### Example From The Code
+
+In [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py):
 
 ```python
 def add_saved_subcategory(self, attr, name):
@@ -1119,9 +1118,7 @@ def add_saved_subcategory(self, attr, name):
 
 What stale behavior might happen if the app added a subcategory but did not invalidate the subcategory cache?
 
-## 25. Background Update Checks
-
-![Code-card infographic for 25. Background Update Checks](images/advanced/advanced-25-update-check.jpg)
+<img src="images/advanced/advanced-25-update-check.jpg" alt="25. Background Update Checks" width="600">
 
 ### Short Lesson
 
@@ -1130,6 +1127,8 @@ Tkinter UI code should run on the main thread.
 Network requests can be slow, so LifeXP runs the GitHub update check in a background thread, then returns to the Tkinter thread with `root.after`.
 
 ### Example From The Code
+
+In `check_for_update()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 def check_for_update(self):
@@ -1172,9 +1171,7 @@ def check_for_update(self):
 
 Why should the worker not directly call `messagebox.showinfo(...)` after the network request?
 
-## 26. Defensive Widget Access
-
-![Code-card infographic for 26. Defensive Widget Access](images/advanced/advanced-26-defensive-widgets.jpg)
+<img src="images/advanced/advanced-26-defensive-widgets.jpg" alt="26. Defensive Widget Access" width="600">
 
 ### Short Lesson
 
@@ -1183,6 +1180,8 @@ Advanced Tkinter code must assume widgets might not exist anymore.
 A user can close a dialog, a tab may not be built, or a widget may be destroyed before a scheduled callback runs.
 
 ### Example From The Code
+
+In [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 button = getattr(self, "update_button", None)
@@ -1207,9 +1206,7 @@ This pattern protects scheduled and background callbacks from stale widget refer
 
 Why can a widget reference exist in Python even after the Tkinter widget has been destroyed?
 
-## 27. Reading A Full Advanced Flow: Complete Quest To Rewards
-
-![Code-card infographic for 27. Reading A Full Advanced Flow: Complete Quest To Rewards](images/advanced/advanced-27-full-flow.jpg)
+<img src="images/advanced/advanced-27-full-flow.jpg" alt="27. Reading A Full Advanced Flow" width="600">
 
 ### Short Lesson
 
@@ -1229,6 +1226,8 @@ This is the complete reward flow:
 10. `play_firework_particles`
 
 ### Example From The Code
+
+In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
 
 ```python
 for task in tasks:
@@ -1266,9 +1265,7 @@ if level_events or rank_event:
 
 Write a one-line summary of this flow in your own words.
 
-## 28. Advanced Debugging
-
-![Code-card infographic for 28. Advanced Debugging](images/advanced/advanced-28-debugging.jpg)
+<img src="images/advanced/advanced-28-debugging.jpg" alt="28. Advanced Debugging" width="600">
 
 ### Short Lesson
 
@@ -1294,9 +1291,9 @@ Use this order:
 
 If a scheduled animation crashes after a popup was destroyed, which defensive check would you look for first?
 
-## 29. What To Read First In `main.py`
+## 29. What To Read First In The Modular Codebase
 
-![Code-card infographic for 29. What To Read First In main.py](images/advanced/advanced-29-read-order.jpg)
+<img src="images/advanced/advanced-29-read-order.jpg" alt="29. What To Read First In The Modular Codebase" width="600">
 
 ### Short Lesson
 
@@ -1326,7 +1323,7 @@ Pick one path from the diagram and read only one direct helper at a time.
 
 ## 30. What You Should Understand After Advanced
 
-![Code-card infographic for 30. What You Should Understand After Advanced](images/advanced/advanced-30-understand.jpg)
+<img src="images/advanced/advanced-30-understand.jpg" alt="30. What You Should Understand After Advanced" width="600">
 
 You have finished the advanced guide when you can explain these ideas without memorizing exact lines:
 
