@@ -36,7 +36,7 @@ When code feels confusing, slow down and ask:
 
 LifeXP is a Tkinter desktop app. The user clicks buttons, the app changes Python data, and then the app redraws widgets.
 
-![The App in One Picture infographic](images/basic/basic-00-app-picture.png)
+<img src="images/basic/basic-00-app-picture.png" alt="The App in One Picture infographic" width="600">
 
 ## 1. Imports
 
@@ -79,7 +79,7 @@ from lifexp.animation_mixin import AnimationMixin
 
 ### Infographic
 
-![Imports infographic](images/basic/basic-01-imports.png)
+<img src="images/basic/basic-01-imports.png" alt="Imports infographic" width="600">
 
 ## 2. Variables
 
@@ -116,7 +116,7 @@ These names are attached to `self`, so they belong to the current LifeXP app obj
 
 ### Infographic
 
-![Variables infographic](images/basic/basic-02-variables.png)
+<img src="images/basic/basic-02-variables.png" alt="Variables infographic" width="600">
 
 ## 3. Constants
 
@@ -145,7 +145,7 @@ XP_POPUP_STEPS = 125
 
 ### Infographic
 
-![Constants infographic](images/basic/basic-03-constants.png)
+<img src="images/basic/basic-03-constants.png" alt="Constants infographic" width="600">
 
 ## 4. Strings, Integers, Booleans, And None
 
@@ -178,7 +178,7 @@ self.tab_selected_bg = None
 
 ### Infographic
 
-![Core value types infographic](images/basic/basic-04-types.png)
+<img src="images/basic/basic-04-types.png" alt="Core value types infographic" width="600">
 
 ## 5. Lists
 
@@ -223,7 +223,7 @@ For `level_events`:
 
 ### Infographic
 
-![Lists infographic](images/basic/basic-05-lists.png)
+<img src="images/basic/basic-05-lists.png" alt="Lists infographic" width="600">
 
 ## 6. Dictionaries
 
@@ -268,7 +268,7 @@ normalized.append({
 
 ### Infographic
 
-![Dictionaries infographic](images/basic/basic-06-dictionaries.png)
+<img src="images/basic/basic-06-dictionaries.png" alt="Dictionaries infographic" width="600">
 
 ## 7. Nested Data
 
@@ -301,7 +301,7 @@ stat["xp"] += amount
 
 ### Infographic
 
-![Nested data infographic](images/basic/basic-07-nested-data.png)
+<img src="images/basic/basic-07-nested-data.png" alt="Nested data infographic" width="600">
 
 ## 8. Functions And Methods With `def`
 
@@ -337,7 +337,7 @@ Later, when code calls `self.get_xp_needed(level)`, Python does this:
 
 ### Infographic
 
-![Methods with def infographic](images/basic/basic-08-def-methods.png)
+<img src="images/basic/basic-08-def-methods.png" alt="Methods with def infographic" width="600">
 
 ## 9. Classes And `self`
 
@@ -376,7 +376,7 @@ class LifeXPApp(UIMixin, DataMixin, EngineMixin, AnimationMixin):
 
 ### Infographic
 
-![Classes and self infographic](images/basic/basic-09-classes-self.png)
+<img src="images/basic/basic-09-classes-self.png" alt="Classes and self infographic" width="600">
 
 ## 10. Indentation
 
@@ -403,7 +403,7 @@ tasks = [self.data["tasks"][index] for index in indices]
 
 ### Infographic
 
-![Indentation infographic](images/basic/basic-10-indentation.png)
+<img src="images/basic/basic-10-indentation.png" alt="Indentation infographic" width="600">
 
 ## 11. `if` And Early `return`
 
@@ -432,7 +432,7 @@ This prevents the app from trying to complete a quest when the user selected not
 
 ### Infographic
 
-![If and early return infographic](images/basic/basic-11-if-return.png)
+<img src="images/basic/basic-11-if-return.png" alt="If and early return infographic" width="600">
 
 ## 12. `for` Loops
 
@@ -475,7 +475,7 @@ Imagine `tasks` contains three completed quests.
 
 ### Infographic
 
-![For loops infographic](images/basic/basic-12-for-loops.png)
+<img src="images/basic/basic-12-for-loops.png" alt="For loops infographic" width="600">
 
 ## 13. `while` Loops
 
@@ -519,7 +519,7 @@ This is why one large quest can cause multiple level-ups.
 
 ### Infographic
 
-![While loops infographic](images/basic/basic-13-while-loops.png)
+<img src="images/basic/basic-13-while-loops.png" alt="While loops infographic" width="600">
 
 ## 14. List Comprehensions
 
@@ -560,7 +560,7 @@ for index in indices:
 
 ### Infographic
 
-![List comprehensions infographic](images/basic/basic-14-list-comprehensions.png)
+<img src="images/basic/basic-14-list-comprehensions.png" alt="List comprehensions infographic" width="600">
 
 ## 15. `enumerate`
 
@@ -592,7 +592,7 @@ for i, task in enumerate(self.data["tasks"]):
 
 ### Infographic
 
-![Enumerate infographic](images/basic/basic-15-enumerate.png)
+<img src="images/basic/basic-15-enumerate.png" alt="Enumerate infographic" width="600">
 
 ## 16. `.append`, `.extend`, `.pop`, And `.get`
 
@@ -639,7 +639,7 @@ task.get("subcategory", "General")
 
 ### Infographic
 
-![Common object methods infographic](images/basic/basic-16-common-methods.png)
+<img src="images/basic/basic-16-common-methods.png" alt="Common object methods infographic" width="600">
 
 ## 17. `try` And `except`
 
@@ -673,7 +673,7 @@ except (TypeError, ValueError):
 
 ### Infographic
 
-![Try except infographic](images/basic/basic-17-try-except.png)
+<img src="images/basic/basic-17-try-except.png" alt="Try except infographic" width="600">
 
 ## 18. `with open` And JSON
 
@@ -718,7 +718,7 @@ For saving:
 
 ### Infographic
 
-![With open and JSON infographic](images/basic/basic-18-with-json.png)
+<img src="images/basic/basic-18-with-json.png" alt="With open and JSON infographic" width="600">
 
 ## 19. String Formatting With f-Strings
 
@@ -760,7 +760,7 @@ If the task has `25` XP, the final text is:
 
 ### Infographic
 
-![F-strings infographic](images/basic/basic-19-fstrings.png)
+<img src="images/basic/basic-19-fstrings.png" alt="F-strings infographic" width="600">
 
 ## 20. Comparison And Boolean Operators
 
@@ -800,7 +800,7 @@ This protects the app from using an invalid row index.
 
 ### Infographic
 
-![Comparisons and booleans infographic](images/basic/basic-20-comparisons.png)
+<img src="images/basic/basic-20-comparisons.png" alt="Comparisons and booleans infographic" width="600">
 
 ## 21. Tkinter Basics
 
@@ -872,7 +872,7 @@ For the button:
 
 ### Infographic
 
-![Tkinter basics infographic](images/basic/basic-21-tkinter.png)
+<img src="images/basic/basic-21-tkinter.png" alt="Tkinter basics infographic" width="600">
 
 ## 22. Event Callbacks
 
@@ -900,7 +900,7 @@ self.task_tree.bind("<Control-Button-1>", self.toggle_task_tree_selection)
 
 ### Infographic
 
-![Event callbacks infographic](images/basic/basic-22-callbacks.png)
+<img src="images/basic/basic-22-callbacks.png" alt="Event callbacks infographic" width="600">
 
 ## 23. `return`
 
@@ -927,7 +927,7 @@ def get_total_xp_for_stat(self, stat):
 
 ### Infographic
 
-![Return values infographic](images/basic/basic-23-return.png)
+<img src="images/basic/basic-23-return.png" alt="Return values infographic" width="600">
 
 ## 24. Reading One Full Flow: Complete Quest
 
@@ -992,7 +992,7 @@ In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engi
 
 ### Infographic
 
-![Complete Quest flow infographic](images/basic/basic-24-complete-flow.png)
+<img src="images/basic/basic-24-complete-flow.png" alt="Complete Quest flow infographic" width="600">
 
 ## 25. Beginner Reading Checklist
 

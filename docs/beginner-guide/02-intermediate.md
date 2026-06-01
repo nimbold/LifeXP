@@ -53,13 +53,18 @@ flowchart TD
 
 A real project is split into files and folders so different kinds of code have clear homes.
 
-In LifeXP:
+In LifeXP's modular architecture:
 
-- `main.py` contains the main app class and most behavior.
-- `lifexp/constants.py` contains shared settings.
-- `lifexp/runtime.py` contains platform and packaging helpers.
-- `assets/` contains images used by the UI.
-- `docs/` contains the learning guide.
+- [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py) is the clean application entry point that initializes Tkinter.
+- `lifexp/` holds our package containing specialized mixins:
+  - [lifexp/constants.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/constants.py) contains shared game settings, version info, and balances.
+  - [lifexp/runtime.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/runtime.py) handles platform OS scaling, packaged helpers, and context checks.
+  - [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py) handles GUI layouts, styles, notebooks, tabs, and event setups.
+  - [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py) handles load/save operations, profile directories, data repairs, and resets.
+  - [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py) handles core RPG mathematics, levels, XP increases, and report generation.
+  - [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py) handles canvas renders, particle widget pools, and popping effects.
+- `assets/` contains images used by the UI (like rank icons).
+- `docs/` contains this guide.
 
 ### Example From The Project
 
@@ -69,6 +74,10 @@ lifexp/
     __init__.py
     constants.py
     runtime.py
+    ui_mixin.py
+    data_mixin.py
+    engine_mixin.py
+    animation_mixin.py
 assets/
     app_icon/
     rank_icons/
@@ -78,29 +87,41 @@ docs/
 
 ### What The Computer Reads
 
-When `main.py` starts, Python imports support code:
+When [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py) starts, Python imports support code:
 
-1. Read standard library imports like `json`, `os`, and `datetime`.
-2. Read Tkinter imports.
-3. Read values from `lifexp/constants.py`.
-4. Read helper functions from `lifexp/runtime.py`.
-5. Define the `LifeXPApp` class.
-6. At the bottom of the file, create and run the app.
+1. Read standard library modules like `tkinter`, `json`, `os`, and `datetime`.
+2. Read balance properties from `lifexp/constants.py`.
+3. Read environment functions from `lifexp/runtime.py`.
+4. Import our four modular Mixins from the `lifexp` package.
+5. Define the `LifeXPApp` class, inheriting from all four mixins.
+6. Create the Tkinter root window and launch the main loop.
 
 ### Infographic
 
 ```mermaid
 flowchart TD
+    subgraph lifexp ["lifexp package"]
+        C["constants.py"]
+        D["runtime.py"]
+        M1["ui_mixin.py"]
+        M2["data_mixin.py"]
+        M3["engine_mixin.py"]
+        M4["animation_mixin.py"]
+    end
+    
     A["main.py"] --> B["LifeXPApp"]
-    C["constants.py"] --> A
-    D["runtime.py"] --> A
-    E["assets/"] --> A
-    F["lifexp_data.json"] <--> A
+    C --> A
+    D --> A
+    M1 --> A
+    M2 --> A
+    M3 --> A
+    M4 --> A
+    F["lifexp_data.json"] <--> M2
 ```
 
 ### Practice
 
-Open `main.py` and find the import section. Which imported names come from LifeXP's own package instead of Python itself?
+Open [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py) and find the import section. Which imported names are our custom mixins, and what package do they belong to?
 
 ## 2. Startup Order
 
@@ -116,6 +137,8 @@ In an app, some things must happen before other things:
 - Tabs must exist before tab-specific widgets can be placed inside them.
 
 ### Example From The Code
+
+In [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py) inside `LifeXPApp.__init__`:
 
 ```python
 self.apply_modern_theme()
@@ -133,16 +156,18 @@ self.apply_display_preferences(save=False)
 
 ### What The Computer Reads
 
-1. Apply an initial theme so style variables exist.
-2. Load saved data from disk.
-3. Calculate the highest stat level.
+The startup sequence is executed inside the `__init__` constructor of `LifeXPApp` (in [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py)), coordinating functions from our four mixin files:
+
+1. **`apply_modern_theme()`** (from `ui_mixin.py`): Apply an initial theme so style variables exist.
+2. **`load_data()`** (from `data_mixin.py`): Load saved data from disk.
+3. **`_calculate_max_level()`** (from `engine_mixin.py`): Calculate the highest stat level.
 4. Read the saved theme from `self.data`.
-5. Apply the theme again using the saved theme.
-6. Build the header.
-7. Build the tabbed UI.
-8. Fill stat labels and progress bars.
-9. Fill the quest table.
-10. Apply saved display preferences without saving again.
+5. **`apply_modern_theme()`** (from `ui_mixin.py`): Apply the theme again using the saved theme.
+6. **`setup_header()`** (from `ui_mixin.py`): Build the header.
+7. **`setup_ui()`** (from `ui_mixin.py`): Build the tabbed UI.
+8. **`update_stats_display()`** (from `ui_mixin.py`): Fill stat labels and progress bars.
+9. **`refresh_task_list()`** (from `ui_mixin.py`): Fill the quest table.
+10. **`apply_display_preferences()`** (from `ui_mixin.py`): Apply saved display preferences without saving again.
 
 The second `apply_modern_theme()` is not a mistake. The first call gives startup a valid style. The second call uses the user's saved theme.
 
@@ -170,6 +195,8 @@ A method chain is a path where one method calls another method, which calls anot
 Beginner reading can focus on one method. Intermediate reading follows the chain.
 
 ### Example From The Code
+
+In [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 self.setup_ui()
@@ -232,6 +259,8 @@ LifeXP expects `self.data` to contain specific top-level keys:
 If these keys are missing, later code can crash.
 
 ### Example From The Code
+
+In [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py):
 
 ```python
 def get_default_data(self):
@@ -357,6 +386,8 @@ The intermediate idea is defensive data loading.
 
 ### Example From The Code
 
+In [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py):
+
 ```python
 default_data = self.get_default_data()
 
@@ -428,6 +459,8 @@ This is one of the most important intermediate patterns in LifeXP.
 Instead of letting every UI method check for bad data, the app cleans data once during load.
 
 ### Example From The Code
+
+In [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py):
 
 ```python
 def normalize_tasks(self, tasks):
@@ -501,6 +534,8 @@ LifeXP uses this for font size, XP, levels, and window dimensions.
 
 ### Example From The Code
 
+In `normalize_user_info()` inside [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py):
+
 ```python
 saved_font_size = int(user_info.get("font_size", normalized["font_size"]))
 if saved_font_size >= LEGACY_MAX_FONT_SIZE:
@@ -544,6 +579,8 @@ LifeXP calculates XP costs often. Instead of recomputing the same level cost eve
 
 ### Example From The Code
 
+In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
+
 ```python
 def get_xp_needed(self, level):
     """Returns the XP required to pass the given attribute level."""
@@ -585,6 +622,8 @@ Some app values are not stored directly. They are calculated from smaller stored
 LifeXP stores current-level XP, but account rank needs lifetime XP.
 
 ### Example From The Code
+
+In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
 
 ```python
 def get_total_xp_for_stat(self, stat):
@@ -649,6 +688,8 @@ This is useful when a function like `sum` only needs one value at a time.
 
 ### Example From The Code
 
+In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
+
 ```python
 total_xp = sum(
     self.get_total_xp_for_stat(stat)
@@ -690,6 +731,8 @@ Binary search finds a value by repeatedly cutting a search range in half.
 LifeXP uses it to find account level from total XP. This is faster than checking every level from `1` upward.
 
 ### Example From The Code
+
+In `get_account_level_progress()` inside [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
 
 ```python
 low = 1
@@ -752,6 +795,8 @@ When data changes, the UI must be refreshed.
 
 ### Example From The Code
 
+In the `save()` nested method of `add_task_dialog()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
+
 ```python
 for quest in pending_quests:
     self.add_saved_subcategory(quest["attribute"], quest["name"])
@@ -798,6 +843,8 @@ When you append a dictionary to a list, you append a reference to that dictionar
 
 ### Example From The Code
 
+In the `save()` nested method of `add_task_dialog()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
+
 ```python
 self.data["tasks"].append(quest.copy())
 ```
@@ -832,6 +879,8 @@ A nested function is a function defined inside another function.
 LifeXP uses nested functions inside dialog setup methods because those helpers only matter inside that one window.
 
 ### Example From The Code
+
+In [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 def setup_settings_tab(self):
@@ -886,6 +935,8 @@ It is not the same as `self`. `self` stores data on the app object. `nonlocal` w
 
 ### Example From The Code
 
+In `add_task_dialog()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
+
 ```python
 def update_suggestions(*args):
     nonlocal suggest_after_id
@@ -934,6 +985,8 @@ Debouncing means waiting briefly before running a function, and resetting the wa
 This is useful for search boxes. If the user types quickly, the app should not rebuild suggestions after every single key.
 
 ### Example From The Code
+
+In `add_task_dialog()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 def update_suggestions_debounced(*args):
@@ -986,6 +1039,8 @@ Intermediate code often combines data filtering, UI clearing, and UI rebuilding 
 `update_suggestions` reads typed text, finds matching activities, clears the listbox, and inserts matching rows.
 
 ### Example From The Code
+
+In `add_task_dialog()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 typed = activity_var.get().strip().lower()
@@ -1083,6 +1138,8 @@ The key tells Python what value to sort by.
 
 ### Example From The Code
 
+In `get_summary_chronicles()` inside [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
+
 ```python
 sorted_activities = sorted(
     activities.items(),
@@ -1128,6 +1185,8 @@ The Chronicles report reads history records and builds:
 - activity counts per attribute
 
 ### Example From The Code
+
+In `get_summary_chronicles()` inside [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
 
 ```python
 activity_by_attribute = {attr: {} for attr in self.attributes}
@@ -1194,6 +1253,8 @@ It should not invent new app data. It should redraw the screen from the current 
 
 ### Example From The Code
 
+In `update_stats_display()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
+
 ```python
 for attr in self.attributes:
     stat = self.data["stats"][attr]
@@ -1242,6 +1303,8 @@ This lets the rest of the UI use names like `self.bg_dark` instead of hard-coded
 
 ### Example From The Code
 
+In `apply_modern_theme()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
+
 ```python
 theme = self.themes[self.current_theme_name]
 self.bg_dark = theme["bg_dark"]
@@ -1287,6 +1350,8 @@ Loops are not only for data. They also prevent repeated UI setup code.
 LifeXP creates progress-bar styles for every attribute with one loop.
 
 ### Example From The Code
+
+In `apply_modern_theme()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 for attr, color in self.attr_colors.items():
@@ -1336,6 +1401,8 @@ LifeXP uses this in display preference updates because the method can run during
 
 ### Example From The Code
 
+In `apply_display_preferences()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
+
 ```python
 if hasattr(self, "font_size_slider_var"):
     self.font_size_slider_var.set(self.font_size)
@@ -1381,6 +1448,8 @@ In Tkinter, it is often used when the callback needs to accept an event or pass 
 
 ### Example From The Code
 
+In `setup_ui()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
+
 ```python
 self.notebook.bind("<Leave>", lambda event: self.set_tab_hover(False))
 ```
@@ -1424,6 +1493,8 @@ Saving directly over the real save file can be risky. If the app crashes during 
 LifeXP writes to a temporary file first, then replaces the real file.
 
 ### Example From The Code
+
+In `save_data()` inside [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py):
 
 ```python
 temp_file = f"{self.data_file}.tmp"
@@ -1475,6 +1546,8 @@ Adding a quest is a good example because it uses:
 - animation feedback
 
 ### Example From The Code
+
+In `add_task_dialog()` inside [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 def save():
