@@ -2,9 +2,16 @@
 
 This chapter teaches the basic Python you need before reading the intermediate guide.
 
-The goal is not to memorize every method in `main.py`. The goal is to understand the syntax patterns that appear again and again in LifeXP.
+The goal is not to memorize every method in the codebase. The goal is to understand the syntax patterns that appear again and again in LifeXP.
 
-Read this file with `main.py`, `lifexp/constants.py`, and `lifexp/runtime.py` open.
+Read this guide alongside the modular LifeXP files:
+- [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py): The clean, modular application entry point.
+- [lifexp/constants.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/constants.py): Holds balance constants, version numbers, font sizing, and visual timings.
+- [lifexp/runtime.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/runtime.py): Handles OS, file paths, packaging detection, and platform scaling.
+- [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py): Builds all visual tabs, quest logs, active quest items, and theme styles.
+- [lifexp/data_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/data_mixin.py): Manages saving progress to JSON, loading profiles, backups, and resets.
+- [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py): Controls core RPG calculations, XP gains, level curves, and task completions.
+- [lifexp/animation_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/animation_mixin.py): Drives high-fidelity canvas animations, particle explosions, and floating text.
 
 ## How To Use This Guide
 
@@ -41,30 +48,34 @@ LifeXP uses imports for:
 
 - Tkinter windows and widgets
 - JSON save files
-- dates
-- file paths
-- constants from `lifexp/constants.py`
-- helper functions from `lifexp/runtime.py`
+- Dates, time, and math functions
+- Constants from `lifexp/constants.py`
+- Helper functions from `lifexp/runtime.py`
+- Modular Mixin classes that group related behaviors into separate files
 
 ### Example From The Code
 
+In [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py):
+
 ```python
-import json
-import os
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 
 from lifexp.constants import BASE_XP_NEEDED, DEFAULT_FONT_SIZE
 from lifexp.runtime import get_resource_dir, get_user_data_dir, is_packaged_app
+
+from lifexp.ui_mixin import UIMixin
+from lifexp.data_mixin import DataMixin
+from lifexp.engine_mixin import EngineMixin
+from lifexp.animation_mixin import AnimationMixin
 ```
 
 ### What The Computer Reads
 
-1. Load Python's `json` tools so the app can read and write save data.
-2. Load Python's `os` tools so the app can work with files and folders.
-3. Load `tkinter` and give it the shorter name `tk`.
-4. Load specific Tkinter helpers like `ttk` and `messagebox`.
-5. Load named constants and helper functions from LifeXP's own package.
+1. Load standard GUI modules like `tkinter`, `ttk`, and `messagebox`.
+2. Load global balancing settings like `BASE_XP_NEEDED` from the constants file.
+3. Load system environment helpers from `runtime.py`.
+4. Load our custom modular Mixins (`UIMixin`, `DataMixin`, `EngineMixin`, `AnimationMixin`) so we can assemble the final app from separate specialized files.
 
 ### Infographic
 
@@ -111,11 +122,13 @@ These names are attached to `self`, so they belong to the current LifeXP app obj
 
 ### Short Lesson
 
-A constant is a normal variable that the project treats as a fixed setting.
+A constant is a normal variable that the project treats as a fixed setting. In modern modular projects, we keep these in a dedicated file so they are easy to find and adjust.
 
 Python does not force constants to stay unchanged. The uppercase naming is a signal to humans: "This is a setting. Do not casually rewrite it."
 
 ### Example From The Code
+
+In [lifexp/constants.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/constants.py):
 
 ```python
 BASE_XP_NEEDED = 100
@@ -128,6 +141,7 @@ XP_POPUP_STEPS = 125
 1. Remember that basic attribute levels start from `100` XP.
 2. Remember that account levels start from `500` XP.
 3. Remember that the XP popup animation lasts `125` steps.
+4. Any other file in the app can import and read these settings without needing to load UI or animation logic.
 
 ### Infographic
 
@@ -331,33 +345,34 @@ Later, when code calls `self.get_xp_needed(level)`, Python does this:
 
 A class groups related data and behavior.
 
-LifeXP is mostly one class:
+To keep a large application clean, we use a modular design pattern called **Mixins** combined with **Multiple Inheritance**. Instead of writing thousands of lines in one giant class file, we split the code into separate mixin classes:
+- `UIMixin` manages visual layouts.
+- `DataMixin` manages JSON file persistence.
+- `EngineMixin` manages RPG rules and math.
+- `AnimationMixin` manages particles and fireworks.
 
-```python
-class LifeXPApp:
-```
-
-`self` means "this exact app object."
-
-Without `self`, one method would not easily share data with another method.
+We then inherit from all of them in our main `LifeXPApp` class. `self` means "this exact instantiated app object." Even though methods are written in different files, `self` connects them all! When a method in `EngineMixin` calls `self.save_data()`, Python looks across all mixins and finds `save_data` in `DataMixin`.
 
 ### Example From The Code
 
+In [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py):
+
 ```python
-class LifeXPApp:
+class LifeXPApp(UIMixin, DataMixin, EngineMixin, AnimationMixin):
     def __init__(self, root):
         self.root = root
         self.attributes = ["Strength", "Agility", "Intelligence", "Charisma", "Vitality"]
-        self.data = self.load_data()
+        # ...
+        self.data = self.load_data()  # load_data is defined in DataMixin!
 ```
 
 ### What The Computer Reads
 
-1. Define a class named `LifeXPApp`.
-2. When a LifeXP app object is created, run `__init__`.
-3. Store the Tkinter window in `self.root`.
-4. Store the attribute list in `self.attributes`.
-5. Call `self.load_data()` and store the returned save data in `self.data`.
+1. Create a class `LifeXPApp` that inherits all methods and variables from our four mixin files.
+2. When `LifeXPApp` starts, run `__init__` to store core variables.
+3. Store the Tkinter root window in `self.root`.
+4. Define the `self.attributes` list, which will be accessible by all mixins.
+5. Call `self.load_data()`. Because of mixins, the computer finds this method inside `DataMixin`, reads `lifexp_data.json`, and attaches the result directly to `self.data`.
 
 ### Infographic
 
@@ -916,59 +931,64 @@ def get_total_xp_for_stat(self, stat):
 
 ## 24. Reading One Full Flow: Complete Quest
 
-Now combine the basics.
+Now combine the basics. See how different modular files work together through the single `self` object!
 
 ### Example From The Code
 
+In [lifexp/engine_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/engine_mixin.py):
+
 ```python
-def complete_task(self):
-    indices = self.get_selected_task_indices("Select a quest to complete it.")
-    if not indices:
-        return
+    def complete_task(self):
+        """The main gameplay loop: Finish task -> Grant XP -> Save History -> Redraw."""
+        indices = self.get_selected_task_indices("Select a quest to complete it.")
+        if not indices:
+            return
 
-    tasks = [self.data["tasks"][index] for index in indices]
-    level_events = []
-    total_xp_gain = 0
+        tasks = [self.data["tasks"][index] for index in indices]
+        level_events = []
+        total_xp_gain = 0
 
-    for task in tasks:
-        attr = task["attribute"]
-        xp_gain = task["xp"]
-        total_xp_gain += xp_gain
-        level_events.extend(self.gain_xp(attr, xp_gain))
+        for task in tasks:
+            attr = task["attribute"]
+            xp_gain = task["xp"]
+            total_xp_gain += xp_gain
+            level_events.extend(self.gain_xp(attr, xp_gain))
 
-        self.data["history"].append({
-            "name": task["name"],
-            "attribute": attr,
-            "subcategory": task.get("subcategory", "General"),
-            "xp": xp_gain,
-            "date": datetime.now().isoformat()
-        })
+            self.data["history"].append({
+                "name": task["name"],
+                "attribute": attr,
+                "subcategory": task.get("subcategory", "General"),
+                "xp": xp_gain,
+                "date": datetime.now().isoformat()
+            })
 
-    for index in sorted(indices, reverse=True):
-        self.data["tasks"].pop(index)
+        for index in sorted(indices, reverse=True):
+            self.data["tasks"].pop(index)
 
-    self.save_data()
-    self.refresh_task_list()
-    rank_event = self.update_stats_display(animate_rank=False)
+        self.save_data()
+        self.refresh_task_list()
+        rank_event = self.update_stats_display(animate_rank=False)
+        level_events = self.summarize_level_events(level_events)
+
+        cx, cy = self.get_center()
+        popup_text = f"+{total_xp_gain} XP!" if len(tasks) == 1 else f"{len(tasks)} QUESTS  +{total_xp_gain} XP!"
+        popup_box = self.play_floating_text(popup_text, "#EBCB8B", cx, cy, size=30, duration_steps=XP_POPUP_STEPS, fade_steps=XP_POPUP_FADE_STEPS)
+        self.play_firework_particles("#EBCB8B", popup_box, count=34, palette=["#EBCB8B", "#FFD166", "#F59E0B", "#F97316"], physics=True, life_range=(42, 58), fade_start_ratio=0.42)
+
+        if level_events or rank_event:
+            self.schedule_level_up_sequence(level_events, rank_event)
 ```
 
 ### What The Computer Reads
 
-1. Get selected quest indexes from the Tkinter table.
-2. If nothing is selected, stop.
-3. Build a list of selected task dictionaries.
-4. Start an empty list for level-up events.
-5. Start total XP at zero.
-6. For each selected task:
-   - read its attribute
-   - read its XP
-   - add XP to the total
-   - call `gain_xp`
-   - append a completed record to history
-7. Remove completed tasks from the active task list.
-8. Save the updated data.
-9. Redraw the quest list.
-10. Redraw the stats display.
+1. **`get_selected_task_indices()`**: Query the Tkinter Treeview table (from `ui_mixin.py`) to find selected quest row indexes.
+2. **Early `return`**: If the user clicked complete without selecting a quest, exit immediately.
+3. **List Comprehension**: Read each selected task dictionary from our loaded profile tasks (`self.data["tasks"]`).
+4. **`for` Loop**: Iterate over selected tasks to extract attributes and XP, call `self.gain_xp()`, and append completed records to `self.data["history"]` with ISO formatted timestamps.
+5. **Reverse Sorted Loop**: Safely delete the completed quests from `self.data["tasks"]` (iterating backwards to avoid indexing shift bugs).
+6. **`self.save_data()`**: Save the modified profile dictionaries back into the JSON file (defined in `data_mixin.py`).
+7. **`self.refresh_task_list()` & `self.update_stats_display()`**: Re-render the tables and progress bars to display the new levels and XP values (defined in `ui_mixin.py`).
+8. **`self.play_floating_text()` & `self.play_firework_particles()`**: Spawn premium visual effects on the canvas, drawing glowing XP popups and launching custom fireworks from the popups (defined in `animation_mixin.py`).
 
 ### Infographic
 
@@ -996,13 +1016,13 @@ Do these before moving to the intermediate guide.
 
 ### Practice 1: Follow A List
 
-Find this line:
+Find this line in [main.py](file:///Users/nima/Documents/Code/LifeXP/main.py):
 
 ```python
 self.attributes = ["Strength", "Agility", "Intelligence", "Charisma", "Vitality"]
 ```
 
-Then search for:
+Then search across the mixin files (e.g. in `ui_mixin.py` or `engine_mixin.py`) for:
 
 ```python
 for attr in self.attributes:
@@ -1012,17 +1032,17 @@ Write down what each loop does with each attribute.
 
 ### Practice 2: Follow A Quest Dictionary
 
-Find where a task dictionary is appended in `normalize_tasks` or `add_task_dialog`.
+Find where a task dictionary is appended in `normalize_tasks` (in `data_mixin.py`) or `add_task_dialog` (in `ui_mixin.py`).
 
 Answer:
 
 - What keys does one task have?
-- Which method displays those keys in the table?
-- Which method removes the task after completion?
+- Which method displays those keys in the table (see `refresh_task_list` in `ui_mixin.py`)?
+- Which method removes the task after completion (see `complete_task` in `engine_mixin.py`)?
 
 ### Practice 3: Follow XP
 
-Start at `complete_task`, then follow:
+Start at `complete_task` (in `engine_mixin.py`), then follow:
 
 ```python
 self.gain_xp(attr, xp_gain)
@@ -1036,7 +1056,7 @@ Answer:
 
 ### Practice 4: Follow A Button
 
-Find this call:
+Find this call in [lifexp/ui_mixin.py](file:///Users/nima/Documents/Code/LifeXP/lifexp/ui_mixin.py):
 
 ```python
 self.create_quest_action_button(action_stack, "+", "Accept Quest", "accept", self.add_task_dialog)
